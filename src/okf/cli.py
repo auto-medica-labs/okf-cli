@@ -171,50 +171,53 @@ def enrich(
             (rel, {"title": title, "description": description, "type": type_name})
         )
 
-    # Generate index.md per directory that has concepts
-    dir_entries: dict[Path, list[dict]] = {}
-    # Also track top-level subdirectories for root index
-    top_level_subdirs: set[str] = set()
-    root_entries: list[dict] = []
+    # Collect per-directory files and subdirectories
+    dir_files: dict[Path, list[dict]] = {}
+    dir_subdirs: dict[Path, set[str]] = {}
 
     for rel, meta in processed:
         parent = rel.parent
-        if parent == Path("."):
-            root_entries.append(
-                {
-                    "title": meta["title"],
-                    "description": meta["description"],
-                    "path": rel.name,
-                }
-            )
-        else:
-            dir_entries.setdefault(parent, []).append(
-                {
-                    "title": meta["title"],
-                    "description": meta["description"],
-                    "path": rel.name,
-                }
-            )
-            # Top-level subdirectory = first component of relative path
-            top_level_subdirs.add(rel.parts[0])
+        dir_files.setdefault(parent, []).append(
+            {
+                "title": meta["title"],
+                "description": meta["description"],
+                "path": rel.name,
+            }
+        )
+        # Record subdirectory relationships at every level
+        for i in range(len(rel.parts) - 1):
+            grandparent = Path(*rel.parts[:i]) if i > 0 else Path(".")
+            child_dir = rel.parts[i]
+            dir_subdirs.setdefault(grandparent, set()).add(child_dir)
 
-    for dir_path, entries in sorted(dir_entries.items()):
+    # Generate index.md for every directory with files or subdirs
+    for dir_path in sorted(set(dir_files.keys()) | set(dir_subdirs.keys())):
         index_path = dst / dir_path / "index.md"
-        if not index_path.exists():
-            index_content = _make_index(entries)
-            if index_content:
-                index_path.parent.mkdir(parents=True, exist_ok=True)
-                index_path.write_text(index_content, encoding="utf-8")
+        if index_path.exists():
+            continue
 
-    # Generate root index.md listing subdirectories and root-level concepts
-    if top_level_subdirs or root_entries:
-        root_index_entries: list[dict] = []
-        for d in sorted(top_level_subdirs):
-            root_index_entries.append({"title": d, "description": "", "path": f"{d}/"})
-        root_index_entries.extend(root_entries)
-        index_content = _make_index(root_index_entries)
-        if index_content:
-            (dst / "index.md").write_text(index_content, encoding="utf-8")
+        lines = []
+        entries = dir_files.get(dir_path, [])
+        subdirs = sorted(dir_subdirs.get(dir_path, set()))
+
+        if entries:
+            lines.append("# Contents")
+            lines.append("")
+            for e in entries:
+                desc = f" - {e['description']}" if e.get("description") else ""
+                lines.append(f"* [{e['title']}]({e['path']}){desc}")
+            lines.append("")
+
+        if subdirs:
+            lines.append("# Directories")
+            lines.append("")
+            for d in subdirs:
+                lines.append(f"* [{d}]({d}/)")
+            lines.append("")
+
+        if lines:
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            index_path.write_text("\n".join(lines), encoding="utf-8")
 
     # Summary
     n = len(processed)

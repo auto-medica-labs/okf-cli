@@ -1,6 +1,6 @@
-# okf — Open Knowledge Format tooling
+# okf-cli — Open Knowledge Format tooling
 
-**okf** converts plain markdown into [OKF](OKF_SPEC.md)-conformant knowledge bundles.
+**okf-cli** converts plain markdown into [OKF](OKF_SPEC.md)-conformant knowledge bundles.
 
 Domain experts write markdown with a simple rule — `# Title` then `> description` — and `okf enrich` generates the frontmatter, type, timestamps, and index files.
 
@@ -44,58 +44,29 @@ Every markdown file **must** start with:
 > Second line of description if needed.
 ```
 
-| Rule | Violation |
+Violations:
+
+| Condition | Behavior |
 |---|---|
-| Line 1 must be `# Title` | Error, stop |
-| Title must be non-empty | Error, stop |
-| Next non-blank lines must be `> description` | Error, stop |
+| Line 1 not `# Title` | Error, stop |
+| Empty title | Error, stop |
+| No `> description` block after title | Error, stop |
 | Root-level file without `--default-type` | Skip file, warn, continue |
 
-Files named `index.md`, `log.md`, or `README.md` are automatically skipped (not concepts).
+Files named `index.md`, `log.md`, or `README.md` are automatically skipped.
 
 ## How it works
 
-1. Walks `input-dir` for all `.md` files
-2. Extracts `title` from `#`, `description` from `>`
-3. Sets `type` from parent directory name (`tables/orders.md` → `type: tables`)
-4. Sets `timestamp` from file modification time
-5. Generates `index.md` per directory listing contents
-6. Writes OKF-conformant bundle to `output-dir`
+1. Walk `input-dir` for all `.md` files
+2. Extract `title` from `#`, `description` from `>`
+3. Set `type` from parent directory name (`tables/orders.md` → `type: tables`)
+4. Set `timestamp` from file modification time
+5. Generate `index.md` per directory — `# Contents` for files, `# Directories` for subdirectories (recursive)
+6. Write OKF-conformant bundle to `output-dir`
 
-### Example
+## Output
 
-```
-input/
-├── datasets/
-│   └── sales.md
-├── tables/
-│   ├── orders.md
-│   └── customers.md
-└── playbooks/
-    └── incident-response.md
-```
-
-```
-$ okf input bundle
-Done. Converted 4 files → bundle
-```
-
-```
-bundle/
-├── index.md                      # lists: datasets/ playbooks/ tables/
-├── datasets/
-│   ├── index.md                  # lists: Sales
-│   └── sales.md                  # type: datasets
-├── tables/
-│   ├── index.md                  # lists: Customer Orders, Customers
-│   ├── orders.md                 # type: tables
-│   └── customers.md              # type: tables
-└── playbooks/
-    ├── index.md                  # lists: Incident Response
-    └── incident-response.md      # type: playbooks
-```
-
-Output files:
+Each concept becomes a markdown file with YAML frontmatter:
 
 ```yaml
 ---
@@ -105,7 +76,40 @@ description: One row per completed customer order across all channels.
 timestamp: 2026-07-04T15:06:51+00:00
 ---
 
-Original body content preserved as-is.
+Original body preserved as-is.
+```
+
+Every directory gets an `index.md` with files and subdirectories listed separately:
+
+```markdown
+# Contents
+
+* [Customer Orders](orders.md) - One row per completed customer order across all channels.
+* [Customers](customers.md) - One row per registered customer.
+
+# Directories
+
+* [partitions](partitions/)
+```
+
+Nested directories get the same treatment recursively:
+
+```
+bundle/
+├── index.md                       # Contents + Directories (top-level)
+├── tables/
+│   ├── index.md                   # Contents + Directories (partitions/)
+│   ├── orders.md
+│   └── partitions/
+│       ├── index.md               # Contents + Directories (2026/)
+│       ├── daily.md
+│       └── 2026/
+│           ├── index.md           # Directories only
+│           └── q1/
+│               ├── index.md       # Directories only
+│               └── jan/
+│                   ├── index.md   # Contents only
+│                   └── january.md
 ```
 
 ## OKF Conformance
@@ -119,10 +123,10 @@ The generated bundle is conformant with [OKF v0.1](OKF_SPEC.md) (§9):
 ## Project
 
 ```
-okf
+okf-cli
 ├── OKF_SPEC.md           # The Open Knowledge Format specification
 ├── pyproject.toml        # uv-managed Python project
 ├── src/okf/cli.py        # Single-file CLI
 ├── tests/test_cli.py     # Tests
-└── example/              # Example markdown to try the tool
+└── example/              # Sample markdown to try the tool
 ```
