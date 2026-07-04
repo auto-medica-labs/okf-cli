@@ -1,7 +1,7 @@
 # OKF Example
 
 This directory contains plain markdown files written by domain experts.
-Run `okf enrich` to convert them into an OKF-conformant knowledge bundle.
+Run `okf bundle` to convert them into an OKF-conformant knowledge bundle.
 
 ```bash
 # From repo root:

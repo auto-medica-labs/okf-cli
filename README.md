@@ -1,14 +1,26 @@
 # okf-cli — Open Knowledge Format tooling
 
-Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write `# Title` then `> description` — `okf enrich` generates frontmatter, type, timestamps, and index files.
+Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write `# Title` then `> description` — `okf bundle` generates frontmatter, type, timestamps, and index files.
 
-## Quickstart
+## Install
+
+```bash
+uv tool install okf-cli
+```
+
+Then run:
+
+```bash
+okf bundle example              # output → bundled/
+cat bundled/index.md
+cat bundled/tables/orders.md
+```
+
+### Dev quickstart
 
 ```bash
 uv sync
-uv run okf example              # output → bundled/
-cat bundled/index.md
-cat bundled/tables/orders.md
+uv run okf example
 ```
 
 ## Usage

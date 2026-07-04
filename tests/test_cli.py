@@ -1,4 +1,4 @@
-"""Tests for okf enrich CLI."""
+"""Tests for okf bundle CLI."""
 
 import json
 from pathlib import Path
@@ -113,7 +113,7 @@ def _write_fixture(dir: Path, files: dict[str, str]):
         p.write_text(content)
 
 
-def test_enrich_basic(tmp_path: Path):
+def test_bundle_basic(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -150,7 +150,7 @@ def test_enrich_basic(tmp_path: Path):
     assert "[tables](tables/)" in root_idx
 
 
-def test_enrich_root_file_with_default_type(tmp_path: Path):
+def test_bundle_root_file_with_default_type(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -177,7 +177,7 @@ def test_enrich_root_file_with_default_type(tmp_path: Path):
     assert "[Standalone](standalone.md)" in root_idx
 
 
-def test_enrich_skip_root_file_without_default(tmp_path: Path, capsys):
+def test_bundle_skip_root_file_without_default(tmp_path: Path, capsys):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -202,7 +202,7 @@ def test_enrich_skip_root_file_without_default(tmp_path: Path, capsys):
     assert "[Standalone" not in root_idx
 
 
-def test_enrich_validation_error(tmp_path: Path):
+def test_bundle_validation_error(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -218,7 +218,7 @@ def test_enrich_validation_error(tmp_path: Path):
     assert "Line 1 must be" in result.output
 
 
-def test_enrich_replaces_existing_output(tmp_path: Path):
+def test_bundle_replaces_existing_output(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -233,7 +233,7 @@ def test_enrich_replaces_existing_output(tmp_path: Path):
     assert not (dst / "leftover.txt").exists()
 
 
-def test_enrich_no_md_files(tmp_path: Path):
+def test_bundle_no_md_files(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -245,7 +245,7 @@ def test_enrich_no_md_files(tmp_path: Path):
     assert "No markdown files" in result.output
 
 
-def test_enrich_logmd_warning(tmp_path: Path):
+def test_bundle_logmd_warning(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -261,7 +261,7 @@ def test_enrich_logmd_warning(tmp_path: Path):
     assert (dst / "tables" / "orders.md").exists()
 
 
-def test_enrich_readme_is_reserved(tmp_path: Path):
+def test_bundle_readme_is_reserved(tmp_path: Path):
     """README.md is reserved and skipped."""
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"

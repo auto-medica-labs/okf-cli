@@ -1,4 +1,4 @@
-"""okf enrich — Plain markdown to OKF bundle converter."""
+"""okf bundle — Plain markdown to OKF bundle converter."""
 
 import json
 import os
@@ -78,7 +78,7 @@ def _parse_md(text: str) -> tuple[str, str, str]:
 
 
 @app.command()
-def enrich(
+def bundle(
     input_dir: str = typer.Argument(
         ..., help="Source directory of plain markdown files"
     ),
