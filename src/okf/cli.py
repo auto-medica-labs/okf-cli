@@ -1,6 +1,8 @@
 """okf enrich — Plain markdown to OKF bundle converter."""
 
+import json
 import os
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,22 +14,12 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-RESERVED = frozenset({"index.md", "log.md", "README.md"})
+RESERVED = frozenset({"index.md", "log.md", "readme.md"})
 
 
 def _yaml_val(v: str) -> str:
-    """Format a string value for YAML. Quote if needed."""
-    if not v:
-        return '""'
-    needs = (
-        v.startswith((" ", "\t"))
-        or v.endswith((" ", "\t"))
-        or any(c in v for c in ":,#{}[]&*!|>%@`\"'")
-    )
-    if needs or v.lower() in ("true", "false", "yes", "no", "on", "off", "null", "~"):
-        v = v.replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{v}"'
-    return v
+    """Format a string value as valid YAML via JSON encoding."""
+    return json.dumps(v, ensure_ascii=True)
 
 
 def _build_frontmatter(type_: str, title: str, description: str, timestamp: str) -> str:
@@ -38,7 +30,7 @@ def _build_frontmatter(type_: str, title: str, description: str, timestamp: str)
         f"description: {_yaml_val(description)}",
     ]
     if timestamp:
-        parts.append(f"timestamp: {timestamp}")
+        parts.append(f"timestamp: {_yaml_val(timestamp)}")
     parts.append("---")
     return "\n".join(parts)
 
@@ -85,24 +77,14 @@ def _parse_md(text: str) -> tuple[str, str, str]:
     return title, description, body
 
 
-def _make_index(entries: list[dict]) -> str:
-    """Generate index.md content from a list of concept entries."""
-    if not entries:
-        return ""
-    lines = ["# Contents", ""]
-    for e in entries:
-        desc = f" - {e['description']}" if e.get("description") else ""
-        lines.append(f"* [{e['title']}]({e['path']}){desc}")
-    lines.append("")
-    return "\n".join(lines)
-
-
 @app.command()
 def enrich(
     input_dir: str = typer.Argument(
         ..., help="Source directory of plain markdown files"
     ),
-    output_dir: str = typer.Argument(..., help="Output directory for the OKF bundle"),
+    output_dir: str = typer.Argument(
+        "bundled", help="Output directory for the OKF bundle (default: bundled)"
+    ),
     default_type: str = typer.Option(
         None, help="Type for root-level files (skip root files if omitted)"
     ),
@@ -111,6 +93,7 @@ def enrich(
 
     Each .md file must start with '# Title' followed by a '>' description block.
     Directory name determines the concept 'type'. Root-level files need --default-type.
+    If output-dir is omitted, defaults to 'bundled'.
     """
     src = Path(input_dir)
     dst = Path(output_dir)
@@ -120,11 +103,21 @@ def enrich(
         raise typer.Exit(code=1)
 
     if dst.exists():
-        typer.echo(f"Error: output directory '{output_dir}' already exists", err=True)
-        raise typer.Exit(code=1)
+        shutil.rmtree(dst)
+        typer.echo(f"Removed existing '{output_dir}'", err=True)
 
-    # Collect all .md files (skip reserved names)
-    md_files = sorted(f for f in src.rglob("*.md") if f.name not in RESERVED)
+    # Collect all .md files (skip reserved names, warn for reserved)
+    md_files = []
+    for f in sorted(src.rglob("*.md")):
+        lower = f.name.lower()
+        if lower in RESERVED:
+            if lower == "log.md":
+                typer.echo(
+                    f"Warning: Skipping {f.relative_to(src)} — reserved filename '{f.name}' (not a concept)",
+                    err=True,
+                )
+            continue
+        md_files.append(f)
     if not md_files:
         typer.echo("No markdown files found (excluding index.md, log.md)", err=True)
         raise typer.Exit(code=1)
@@ -163,6 +156,11 @@ def enrich(
 
         # Build and write
         frontmatter = _build_frontmatter(type_name, title, description, ts)
+
+        # Validate frontmatter structure
+        if not (frontmatter.startswith("---\n") and frontmatter.endswith("\n---")):
+            typer.echo(f"Error: {rel}: generated invalid frontmatter", err=True)
+            raise typer.Exit(code=1)
 
         # Preserve original line endings? Keep as-is from input.
         out_file.write_text(f"{frontmatter}\n\n{body}", encoding="utf-8")

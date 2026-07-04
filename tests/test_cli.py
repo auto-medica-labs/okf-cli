@@ -5,7 +5,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from okf.cli import app, _parse_md, _build_frontmatter, _make_index
+from okf.cli import app, _parse_md, _build_frontmatter
 
 runner = CliRunner()
 
@@ -85,31 +85,22 @@ def test_parse_no_trailing_newline():
 
 def test_frontmatter_basic():
     fm = _build_frontmatter("tables", "Orders", "One row.", "2026-07-04T12:00:00")
-    assert "type: tables" in fm
-    assert "title: Orders" in fm
-    assert "description: One row." in fm
-    assert "timestamp: 2026-07-04T12:00:00" in fm
+    assert 'type: "tables"' in fm
+    assert 'title: "Orders"' in fm
+    assert 'description: "One row."' in fm
+    assert 'timestamp: "2026-07-04T12:00:00"' in fm
     assert fm.startswith("---")
     assert fm.endswith("---")
 
 
-def test_frontmatter_quoting():
-    fm = _build_frontmatter("ref", "Thing: A", "Has: colons", "")
-    assert 'title: "Thing: A"' in fm or 'title: "Thing: A"' in fm
-    assert 'description: "Has: colons"' in fm
+def test_frontmatter_special_chars():
+    fm = _build_frontmatter("ref", "Thing: A", 'Has: colons and "quotes"', "")
+    assert 'title: "Thing: A"' in fm
+    assert 'description: "Has: colons and \\"quotes\\""' in fm
+    # json.dumps escapes everything properly
+    import json
 
-
-# --- _make_index ---
-
-
-def test_make_index():
-    entries = [
-        {"title": "Orders", "description": "One row.", "path": "orders.md"},
-        {"title": "Customers", "description": "", "path": "customers.md"},
-    ]
-    idx = _make_index(entries)
-    assert "* [Orders](orders.md) - One row." in idx
-    assert "* [Customers](customers.md)" in idx  # no dash when empty desc
+    assert json.loads(fm.split("\n")[1].split(": ", 1)[1]) == "ref"
 
 
 # --- CLI integration ---
@@ -144,9 +135,9 @@ def test_enrich_basic(tmp_path: Path):
 
     # Check frontmatter in orders.md
     orders = (dst / "tables" / "orders.md").read_text()
-    assert "type: tables" in orders
-    assert "title: Orders" in orders
-    assert "description: One row per order." in orders
+    assert 'type: "tables"' in orders
+    assert 'title: "Orders"' in orders
+    assert 'description: "One row per order."' in orders
     assert "Body content." in orders
 
     # Check index
@@ -175,10 +166,10 @@ def test_enrich_root_file_with_default_type(tmp_path: Path):
     assert result.exit_code == 0, result.output
 
     stand = (dst / "standalone.md").read_text()
-    assert "type: reference" in stand
+    assert 'type: "reference"' in stand
 
     data = (dst / "tables" / "data.md").read_text()
-    assert "type: tables" in data
+    assert 'type: "tables"' in data
 
     # Root index should list subdir + root file
     root_idx = (dst / "index.md").read_text()
@@ -227,16 +218,19 @@ def test_enrich_validation_error(tmp_path: Path):
     assert "Line 1 must be" in result.output
 
 
-def test_enrich_output_exists(tmp_path: Path):
+def test_enrich_replaces_existing_output(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
     dst.mkdir()
+    (dst / "leftover.txt").write_text("should be gone")
     _write_fixture(src, {"tables/a.md": "# A\n\n> Desc.\n"})
 
     result = runner.invoke(app, [str(src), str(dst)])
-    assert result.exit_code == 1
-    assert "already exists" in result.output
+    assert result.exit_code == 0, result.output
+    assert "Removed existing" in result.output
+    assert (dst / "tables" / "a.md").exists()
+    assert not (dst / "leftover.txt").exists()
 
 
 def test_enrich_no_md_files(tmp_path: Path):
@@ -249,3 +243,62 @@ def test_enrich_no_md_files(tmp_path: Path):
     result = runner.invoke(app, [str(src), str(dst)])
     assert result.exit_code == 1
     assert "No markdown files" in result.output
+
+
+def test_enrich_logmd_warning(tmp_path: Path):
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    (src / "log.md").write_text("# Log\n\n> Some log entry.\n")
+    (src / "tables").mkdir()
+    (src / "tables/orders.md").write_text("# Orders\n\n> One row.\n\nBody.")
+
+    result = runner.invoke(app, [str(src), str(dst)])
+    assert result.exit_code == 0, result.output
+    assert "reserved filename" in result.output
+    assert "log.md" in result.output
+    assert not (dst / "log.md").exists()
+    assert (dst / "tables" / "orders.md").exists()
+
+
+def test_enrich_readme_is_reserved(tmp_path: Path):
+    """README.md is reserved and skipped."""
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables/README.md").write_text(
+        "# README\n\n> Top-level readme.\n\nDocs here."
+    )
+    (src / "tables/orders.md").write_text(
+        "# Orders\n\n> One row.\n\nBody."
+    )
+
+    result = runner.invoke(app, [str(src), str(dst)])
+    assert result.exit_code == 0, result.output
+    assert not (dst / "tables" / "README.md").exists()
+    assert (dst / "tables" / "orders.md").exists()
+
+
+def test_frontmatter_yaml_parseable(tmp_path: Path):
+    """Verify generated frontmatter is parseable JSON/YAML for tricky values."""
+    import json
+
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    (src / "data.md").write_text(
+        "# True/False\n\n> Yes, no, true, false values\n\nBody."
+    )
+
+    result = runner.invoke(app, [str(src), str(dst), "--default-type", "ref"])
+    assert result.exit_code == 0, result.output
+
+    content = (dst / "data.md").read_text()
+    frontmatter = content.split("\n---\n")[0] + "\n---\n"
+    # Parse each line as key: <json-string> and verify
+    for line in frontmatter.strip().split("\n"):
+        if line == "---":
+            continue
+        key, _, raw_val = line.partition(": ")
+        assert json.loads(raw_val), f"Value for {key} is not valid JSON: {raw_val}"

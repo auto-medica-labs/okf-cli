@@ -12,25 +12,25 @@ Domain experts write markdown with a simple rule — `# Title` then `> descripti
 # Install
 uv sync
 
-# Convert the example
-uv run okf example out
+# Convert the example (output-dir defaults to 'bundled')
+uv run okf example
 
 # See the result
-cat out/index.md
-cat out/tables/orders.md
-cat out/tables/index.md
+cat bundled/index.md
+cat bundled/tables/orders.md
+cat bundled/tables/index.md
 ```
 
 ## Usage
 
 ```
-okf <input-dir> <output-dir> [--default-type <name>]
+okf <input-dir> [output-dir] [--default-type <name>]
 ```
 
 | Argument | Description |
 |---|---|
 | `input-dir` | Directory of plain markdown files |
-| `output-dir` | Target directory for the OKF bundle (must not exist) |
+| `output-dir` | Target directory for the OKF bundle (default: `bundled`) |
 | `--default-type` | Type for root-level files (skip root files if omitted) |
 
 ## Input rules
@@ -53,7 +53,7 @@ Violations:
 | No `> description` block after title | Error, stop |
 | Root-level file without `--default-type` | Skip file, warn, continue |
 
-Files named `index.md`, `log.md`, or `README.md` are automatically skipped.
+Files named `index.md`, `log.md`, or `README.md` are automatically skipped (OKF reserved filenames).
 
 ## How it works
 
@@ -66,14 +66,14 @@ Files named `index.md`, `log.md`, or `README.md` are automatically skipped.
 
 ## Output
 
-Each concept becomes a markdown file with YAML frontmatter:
+Each concept becomes a markdown file with YAML frontmatter. Values are always quoted for safety:
 
 ```yaml
 ---
-type: tables
-title: Customer Orders
-description: One row per completed customer order across all channels.
-timestamp: 2026-07-04T15:06:51+00:00
+type: "tables"
+title: "Customer Orders"
+description: "One row per completed customer order across all channels."
+timestamp: "2026-07-04T15:06:51+00:00"
 ---
 
 Original body preserved as-is.
@@ -116,7 +116,7 @@ bundle/
 
 The generated bundle is conformant with [OKF v0.1](OKF_SPEC.md) (§9):
 
-- Every non-reserved `.md` has parseable YAML frontmatter with non-empty `type` ✓
+- Every non-reserved `.md` has parseable YAML frontmatter with non-empty `type` (values safely quoted) ✓
 - Reserved filenames (`index.md`) follow spec structure ✓
 - Consumers MUST tolerate missing optional fields, unknown types, broken links ✓
 
