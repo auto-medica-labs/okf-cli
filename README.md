@@ -1,6 +1,6 @@
 # okf-cli — Open Knowledge Format tooling
 
-**okf-cli** converts plain markdown into [OKF](OKF_SPEC.md)-conformant knowledge bundles.
+**okf-cli** converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles.
 
 Domain experts write markdown with a simple rule — `# Title` then `> description` — and `okf enrich` generates the frontmatter, type, timestamps, and index files.
 
