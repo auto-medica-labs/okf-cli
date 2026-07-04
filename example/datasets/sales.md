@@ -4,4 +4,4 @@
 
 Contains transactional data from both online and in-store channels.
 
-Key tables include [orders](/tables/orders.md) and [customers](/tables/customers.md).
+Key tables include [orders](../tables/orders.md) and [customers](../tables/customers.md).

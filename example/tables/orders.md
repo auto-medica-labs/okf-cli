@@ -13,4 +13,4 @@
 
 ## Notes
 
-Part of the [Sales Dataset](/datasets/sales.md). Joined with [customers](/tables/customers.md) on `customer_id`.
+Part of the [Sales Dataset](../datasets/sales.md). Joined with [customers](customers.md) on `customer_id`.

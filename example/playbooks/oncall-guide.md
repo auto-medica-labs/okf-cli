@@ -10,4 +10,4 @@
 
 ## Common Issues
 
-See [Incident Response](/playbooks/incident-response.md) for data freshness issues.
+See [Incident Response](incident-response.md) for data freshness issues.

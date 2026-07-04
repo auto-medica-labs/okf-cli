@@ -2,7 +2,7 @@
 
 > One partition per day for the orders table.
 
-Part of the [orders](/tables/orders.md) table's partitioning scheme.
+Part of the [orders](../../tables/orders.md) table's partitioning scheme.
 
 ## Schema
 

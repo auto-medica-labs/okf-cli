@@ -13,4 +13,4 @@
 
 ## Notes
 
-Referenced by [orders](/tables/orders.md) via `customer_id`.
+Referenced by [orders](orders.md) via `customer_id`.
