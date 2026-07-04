@@ -125,7 +125,7 @@ def test_bundle_basic(tmp_path: Path):
         },
     )
 
-    result = runner.invoke(app, [str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
 
     # Check output structure
@@ -162,7 +162,7 @@ def test_bundle_root_file_with_default_type(tmp_path: Path):
         },
     )
 
-    result = runner.invoke(app, [str(src), str(dst), "--default-type", "reference"])
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--default-type", "reference"])
     assert result.exit_code == 0, result.output
 
     stand = (dst / "standalone.md").read_text()
@@ -189,7 +189,7 @@ def test_bundle_skip_root_file_without_default(tmp_path: Path, capsys):
         },
     )
 
-    result = runner.invoke(app, [str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
 
     assert not (dst / "standalone.md").exists()
@@ -213,7 +213,7 @@ def test_bundle_validation_error(tmp_path: Path):
         },
     )
 
-    result = runner.invoke(app, [str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 1
     assert "Line 1 must be" in result.output
 
@@ -226,7 +226,7 @@ def test_bundle_replaces_existing_output(tmp_path: Path):
     (dst / "leftover.txt").write_text("should be gone")
     _write_fixture(src, {"tables/a.md": "# A\n\n> Desc.\n"})
 
-    result = runner.invoke(app, [str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
     assert "Removed existing" in result.output
     assert (dst / "tables" / "a.md").exists()
@@ -240,7 +240,7 @@ def test_bundle_no_md_files(tmp_path: Path):
     # Create a non-md file
     (src / "readme.txt").write_text("hello")
 
-    result = runner.invoke(app, [str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 1
     assert "No markdown files" in result.output
 
@@ -253,7 +253,7 @@ def test_bundle_logmd_warning(tmp_path: Path):
     (src / "tables").mkdir()
     (src / "tables/orders.md").write_text("# Orders\n\n> One row.\n\nBody.")
 
-    result = runner.invoke(app, [str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
     assert "reserved filename" in result.output
     assert "log.md" in result.output
@@ -274,7 +274,7 @@ def test_bundle_readme_is_reserved(tmp_path: Path):
         "# Orders\n\n> One row.\n\nBody."
     )
 
-    result = runner.invoke(app, [str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
     assert not (dst / "tables" / "README.md").exists()
     assert (dst / "tables" / "orders.md").exists()
@@ -291,7 +291,7 @@ def test_frontmatter_yaml_parseable(tmp_path: Path):
         "# True/False\n\n> Yes, no, true, false values\n\nBody."
     )
 
-    result = runner.invoke(app, [str(src), str(dst), "--default-type", "ref"])
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--default-type", "ref"])
     assert result.exit_code == 0, result.output
 
     content = (dst / "data.md").read_text()
