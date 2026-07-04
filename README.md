@@ -33,7 +33,102 @@ okf <input-dir> [output-dir] [--default-type <name>]
 | `output-dir` | Target directory for the OKF bundle (default: `bundled`) |
 | `--default-type` | Type for root-level files (skip root files if omitted) |
 
-## Input rules
+## For domain experts — writing docs that work
+
+### Every file follows the same 3-line pattern
+
+Open your file. Write exactly this:
+
+```markdown
+# Customer Orders
+
+> One row per completed customer order across all channels.
+```
+
+That's the template. **Every** file must start with a `#` heading, then a blank line, then a `>` description.
+
+Everything after the description is free-form — schema tables, notes, examples, diagrams. It's preserved as-is.
+
+### What you write → what the tool produces
+
+| You write (in `tables/orders.md`) | Tool generates |
+|---|---|
+| `# Customer Orders` | `title: "Customer Orders"` |
+| `> One row per order.` | `description: "One row per order."` |
+| File is inside `tables/` folder | `type: "tables"` (from folder name) |
+| File's last-modified time | `timestamp: "2026-07-04T15:06:51+00:00"` (auto) |
+| Your body text after the description | Preserved unchanged below frontmatter |
+
+### Folder name = concept type
+
+The folder your file lives in becomes its **type** — the category that tells readers what kind of thing this is.
+
+```
+tables/orders.md       → type is "tables"
+playbooks/oncall.md    → type is "playbooks"
+datasets/sales.md      → type is "datasets"
+```
+
+**Organize your files into named folders.** Don't leave them loose at the root unless the person running the tool knows to set a default type.
+
+### You can link to other docs
+
+```markdown
+See the [orders table](../tables/orders.md) for the join key.
+```
+
+Use standard markdown links. Relative paths (`../tables/orders.md`) work. The OKF spec accepts broken links too — no penalty for linking to something not yet written.
+
+### The complete rulebook (short)
+
+| Rule | Why |
+|---|---|
+| Start every file with `# Title` | Tool reads the title here |
+| Follow with `> Description` | Tool reads the description here |
+| Name your folder what you want the type to be | Tool infers type from folder name |
+| Use `.md` extension | Only `.md` files are processed |
+| Don't name files `index.md`, `README.md`, or `log.md` | These names are reserved by the OKF spec |
+
+### What the tool handles FOR you
+
+You don't need to think about:
+
+- **YAML frontmatter** — generated automatically
+- **Timestamps** — taken from your file's last-modified time
+- **Index files** — every folder gets an `index.md` listing its contents
+- **Type field** — derived from your folder structure
+- **Quoting** — all values are safely quoted for YAML parsing
+
+### Quick reference: one good file, start to finish
+
+```markdown
+# Data Freshness Incident
+
+> Steps to triage a freshness alert on the orders pipeline.
+
+## Trigger
+
+A freshness alert fires when the [orders](../tables/orders.md) table lags.
+
+## Steps
+
+1. Check the ingestion dashboard.
+2. Verify upstream source connectivity.
+3. Notify the data engineering team if the issue persists.
+```
+
+This becomes an OKF concept with `type: "playbooks"` (if in `playbooks/`), a title, description, auto-timestamp, and the body unchanged.
+
+### If something goes wrong
+
+| You see | Likely cause |
+|---|---|
+| "Line 1 must be '# Title'" | File doesn't start with `# Something` |
+| "Must have a '> description' block" | No description line after the title |
+| "Skipping ... root-level file" | File is in the root folder; needs `--default-type` from whoever runs the tool |
+| File silently missing from output | File is named `index.md`, `log.md`, or `README.md` (reserved names) |
+
+## Input rules (for operators)
 
 Every markdown file **must** start with:
 
