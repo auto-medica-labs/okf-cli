@@ -162,7 +162,9 @@ def test_bundle_root_file_with_default_type(tmp_path: Path):
         },
     )
 
-    result = runner.invoke(app, ["bundle", str(src), str(dst), "--default-type", "reference"])
+    result = runner.invoke(
+        app, ["bundle", str(src), str(dst), "--default-type", "reference"]
+    )
     assert result.exit_code == 0, result.output
 
     stand = (dst / "standalone.md").read_text()
@@ -270,9 +272,7 @@ def test_bundle_readme_is_reserved(tmp_path: Path):
     (src / "tables/README.md").write_text(
         "# README\n\n> Top-level readme.\n\nDocs here."
     )
-    (src / "tables/orders.md").write_text(
-        "# Orders\n\n> One row.\n\nBody."
-    )
+    (src / "tables/orders.md").write_text("# Orders\n\n> One row.\n\nBody.")
 
     result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
