@@ -5,17 +5,18 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from okf.cli import app, _parse_frontmatter, _parse_md, _build_frontmatter
+from okf.cli import app
+from okf.core import parse_frontmatter, parse_md, build_frontmatter
 
 runner = CliRunner()
 
 
-# --- _parse_md ---
+# --- parse_md ---
 
 
 def test_parse_basic():
     text = "# Orders\n\n> One row per order.\n\nBody here."
-    title, desc, body = _parse_md(text)
+    title, desc, body = parse_md(text)
     assert title == "Orders"
     assert desc == "One row per order."
     assert body == "Body here."
@@ -23,7 +24,7 @@ def test_parse_basic():
 
 def test_parse_multiline_desc():
     text = "# Orders\n\n> Line one\n> Line two\n\nBody."
-    title, desc, body = _parse_md(text)
+    title, desc, body = parse_md(text)
     assert title == "Orders"
     assert desc == "Line one Line two"
     assert body == "Body."
@@ -31,7 +32,7 @@ def test_parse_multiline_desc():
 
 def test_parse_no_blank_after_title():
     text = "# Orders\n> Desc\n\nBody."
-    title, desc, body = _parse_md(text)
+    title, desc, body = parse_md(text)
     assert title == "Orders"
     assert desc == "Desc"
     assert body == "Body."
@@ -40,7 +41,7 @@ def test_parse_no_blank_after_title():
 def test_parse_missing_title():
     text = "No hash\n> Desc\n\nBody."
     try:
-        _parse_md(text)
+        parse_md(text)
         assert False, "Should raise"
     except ValueError as e:
         assert "Line 1 must be" in str(e)
@@ -49,7 +50,7 @@ def test_parse_missing_title():
 def test_parse_missing_desc():
     text = "# Orders\n\nBody no desc."
     try:
-        _parse_md(text)
+        parse_md(text)
         assert False, "Should raise"
     except ValueError as e:
         assert "description" in str(e)
@@ -58,7 +59,7 @@ def test_parse_missing_desc():
 def test_parse_empty_title():
     text = "# \n> Desc\n\nBody."
     try:
-        _parse_md(text)
+        parse_md(text)
         assert False, "Should raise"
     except ValueError as e:
         assert "empty" in str(e)
@@ -66,7 +67,7 @@ def test_parse_empty_title():
 
 def test_parse_only_title_and_desc():
     text = "# Orders\n> Just a description"
-    title, desc, body = _parse_md(text)
+    title, desc, body = parse_md(text)
     assert title == "Orders"
     assert desc == "Just a description"
     assert body == ""
@@ -74,17 +75,17 @@ def test_parse_only_title_and_desc():
 
 def test_parse_no_trailing_newline():
     text = "# Orders\n> Desc\n\nBody\n"
-    title, desc, body = _parse_md(text)
+    title, desc, body = parse_md(text)
     assert title == "Orders"
     assert desc == "Desc"
     assert body == "Body\n"
 
 
-# --- _build_frontmatter ---
+# --- build_frontmatter ---
 
 
 def test_frontmatter_basic():
-    fm = _build_frontmatter("tables", "Orders", "One row.", "2026-07-04T12:00:00")
+    fm = build_frontmatter("tables", "Orders", "One row.", "2026-07-04T12:00:00")
     assert 'type: "tables"' in fm
     assert 'title: "Orders"' in fm
     assert 'description: "One row."' in fm
@@ -94,7 +95,7 @@ def test_frontmatter_basic():
 
 
 def test_frontmatter_special_chars():
-    fm = _build_frontmatter("ref", "Thing: A", 'Has: colons and "quotes"', "")
+    fm = build_frontmatter("ref", "Thing: A", 'Has: colons and "quotes"', "")
     assert 'title: "Thing: A"' in fm
     assert 'description: "Has: colons and \\"quotes\\""' in fm
     # json.dumps escapes everything properly
@@ -304,12 +305,12 @@ def test_frontmatter_yaml_parseable(tmp_path: Path):
         assert json.loads(raw_val), f"Value for {key} is not valid JSON: {raw_val}"
 
 
-# --- _parse_frontmatter ---
+# --- parse_frontmatter ---
 
 
 def test_parse_frontmatter_basic():
     text = "---\ntype: table\ntitle: Orders\n---\n\nBody."
-    fm = _parse_frontmatter(text)
+    fm = parse_frontmatter(text)
     assert fm is not None
     assert fm["type"] == "table"
     assert fm["title"] == "Orders"
@@ -317,28 +318,28 @@ def test_parse_frontmatter_basic():
 
 def test_parse_frontmatter_missing_opening():
     text = "type: table\n---\nBody."
-    assert _parse_frontmatter(text) is None
+    assert parse_frontmatter(text) is None
 
 
 def test_parse_frontmatter_missing_closing():
     text = "---\ntype: table\nBody."
-    assert _parse_frontmatter(text) is None
+    assert parse_frontmatter(text) is None
 
 
 def test_parse_frontmatter_empty():
     text = "---\n---\nBody."
-    fm = _parse_frontmatter(text)
+    fm = parse_frontmatter(text)
     assert fm is not None
     assert fm == {}
 
 
 def test_parse_frontmatter_empty_file():
-    assert _parse_frontmatter("") is None
+    assert parse_frontmatter("") is None
 
 
 def test_parse_frontmatter_only_dashes():
     text = "---"
-    assert _parse_frontmatter(text) is None
+    assert parse_frontmatter(text) is None
 
 
 # --- CLI validate ---
