@@ -1,12 +1,11 @@
 """Tests for okf bundle CLI."""
 
-import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from okf.cli import app
-from okf.core import parse_frontmatter, parse_md, build_frontmatter
+from okf.core import build_frontmatter, parse_frontmatter, parse_md
 
 runner = CliRunner()
 

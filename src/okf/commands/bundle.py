@@ -1,7 +1,7 @@
 """okf bundle command."""
 
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -53,7 +53,8 @@ def bundle(
         lower = f.name.lower()
         if lower in RESERVED:
             typer.echo(
-                f"Warning: Skipping {f.relative_to(src)} — reserved filename '{f.name}' (not a concept)",
+                f"Warning: Skipping {f.relative_to(src)} — "
+                f"reserved filename '{f.name}' (not a concept)",
                 err=True,
             )
             continue
@@ -91,7 +92,7 @@ def bundle(
             raise typer.Exit(code=1)
 
         # Timestamp from file mtime
-        ts = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat()
+        ts = datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat()
 
         # Build and write
         frontmatter = build_frontmatter(type_name, title, description, ts)

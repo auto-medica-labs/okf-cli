@@ -35,7 +35,7 @@ uv run okf bundle example bundled --default-type reference --force
 
 ```
 okf-cli
-├── .github/workflows/test.yml # CI (pytest on 3.11, 3.13)
+├── .github/workflows/test.yml # CI (pytest on 3.11)
 ├── OKF_SPEC.md              # OKF v0.1 specification
 ├── README.md                # user-facing docs
 ├── AGENTS.md                # this file
