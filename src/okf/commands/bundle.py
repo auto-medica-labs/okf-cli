@@ -84,12 +84,8 @@ def bundle(
             type_name = rel.parent.name
 
         # Parse
-        try:
-            text = f.read_text(encoding="utf-8")
-            title, description, body = parse_md(text)
-        except ValueError as e:
-            typer.echo(f"Error: {rel}: {e}", err=True)
-            raise typer.Exit(code=1)
+        text = f.read_text(encoding="utf-8")
+        title, description, body = parse_md(text)
 
         # Timestamp from file mtime
         ts = datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat()
@@ -142,8 +138,9 @@ def bundle(
             lines.append("# Contents")
             lines.append("")
             for e in entries:
+                display = e["title"] if e["title"] else Path(e["path"]).stem
                 desc = f" - {e['description']}" if e.get("description") else ""
-                lines.append(f"* [{e['title']}]({e['path']}){desc}")
+                lines.append(f"* [{display}]({e['path']}){desc}")
             lines.append("")
 
         if subdirs:

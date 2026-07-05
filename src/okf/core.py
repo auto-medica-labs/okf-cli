@@ -19,19 +19,19 @@ def build_frontmatter(type_: str, title: str, description: str, timestamp: str) 
     parts = [
         "---",
         f"type: {yaml_val(type_)}",
-        f"title: {yaml_val(title)}",
-        f"description: {yaml_val(description)}",
     ]
+    if title:
+        parts.append(f"title: {yaml_val(title)}")
+    parts.append(f"description: {yaml_val(description)}")
     if timestamp:
         parts.append(f"timestamp: {yaml_val(timestamp)}")
     parts.append("---")
     return "\n".join(parts)
 
 
-def parse_md(text: str) -> tuple[str, str, str]:
-    """Parse title, description, body from plain markdown.
+def _parse_strict(text: str) -> tuple[str, str, str]:
+    """Parse strict: line 1 must be '# Title' followed by '>' block.
 
-    Returns (title, description, body).
     Raises ValueError on format violation.
     """
     lines = text.splitlines(keepends=True)
@@ -43,15 +43,12 @@ def parse_md(text: str) -> tuple[str, str, str]:
     if not title:
         raise ValueError("Title cannot be empty")
 
-    # Find first non-blank after title line
     i = 1
     while i < len(lines) and not lines[i].strip():
         i += 1
 
-    # Collect consecutive > lines
     desc_lines = []
     while i < len(lines) and lines[i].startswith(">"):
-        # Handle both "> text" and ">text"
         content = lines[i][1:].strip()
         desc_lines.append(content)
         i += 1
@@ -61,13 +58,54 @@ def parse_md(text: str) -> tuple[str, str, str]:
 
     description = " ".join(desc_lines).strip()
 
-    # Skip blank lines between description and body
     while i < len(lines) and not lines[i].strip():
         i += 1
 
     body = "".join(lines[i:])
 
     return title, description, body
+
+
+def _parse_lenient(text: str) -> tuple[str, str, str]:
+    """Parse lenient: best-effort title from line 0, description from body.
+
+    Never raises.
+    """
+    lines = text.splitlines(keepends=True)
+
+    if lines and lines[0].startswith("# "):
+        title = lines[0][2:].strip()
+        rest = "".join(lines[1:])
+    else:
+        title = ""
+        rest = text
+
+    body = rest.strip()
+
+    if body:
+        collapsed = " ".join(body.split())
+        desc = collapsed[:80]
+        if len(collapsed) > 80:
+            desc = desc.rstrip() + "..."
+    else:
+        desc = ""
+
+    return title, desc, body
+
+
+def parse_md(text: str) -> tuple[str, str, str]:
+    """Parse title, description, body from plain markdown.
+
+    Tries strict parsing first (line 1 '# Title', '>' block).
+    Falls back to lenient: title from line 0 if present, description
+    derived from first 80 chars of body.
+
+    Returns (title, description, body). Never raises.
+    """
+    try:
+        return _parse_strict(text)
+    except ValueError:
+        return _parse_lenient(text)
 
 
 def parse_frontmatter(text: str) -> dict[str, Any] | None:

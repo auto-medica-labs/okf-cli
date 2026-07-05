@@ -39,29 +39,26 @@ def test_parse_no_blank_after_title():
 
 def test_parse_missing_title():
     text = "No hash\n> Desc\n\nBody."
-    try:
-        parse_md(text)
-        assert False, "Should raise"
-    except ValueError as e:
-        assert "Line 1 must be" in str(e)
+    title, desc, body = parse_md(text)
+    assert title == ""
+    assert desc == "No hash > Desc Body."
+    assert body == "No hash\n> Desc\n\nBody."
 
 
 def test_parse_missing_desc():
     text = "# Orders\n\nBody no desc."
-    try:
-        parse_md(text)
-        assert False, "Should raise"
-    except ValueError as e:
-        assert "description" in str(e)
+    title, desc, body = parse_md(text)
+    assert title == "Orders"
+    assert desc == "Body no desc."
+    assert body == "Body no desc."
 
 
 def test_parse_empty_title():
     text = "# \n> Desc\n\nBody."
-    try:
-        parse_md(text)
-        assert False, "Should raise"
-    except ValueError as e:
-        assert "empty" in str(e)
+    title, desc, body = parse_md(text)
+    assert title == ""
+    assert desc == "> Desc Body."
+    assert body == "> Desc\n\nBody."
 
 
 def test_parse_only_title_and_desc():
@@ -78,6 +75,22 @@ def test_parse_no_trailing_newline():
     assert title == "Orders"
     assert desc == "Desc"
     assert body == "Body\n"
+
+
+def test_parse_lenient_description_truncation():
+    """Description derived from body is truncated at 80 chars with '...'."""
+    long_body = "x" * 120
+    title, desc, body = parse_md(long_body)
+    assert title == ""
+    assert desc == "x" * 80 + "..."
+    assert body == long_body
+
+
+def test_parse_lenient_empty_file():
+    title, desc, body = parse_md("")
+    assert title == ""
+    assert desc == ""
+    assert body == ""
 
 
 # --- build_frontmatter ---
@@ -101,6 +114,15 @@ def test_frontmatter_special_chars():
     import json
 
     assert json.loads(fm.split("\n")[1].split(": ", 1)[1]) == "ref"
+
+
+def test_build_frontmatter_no_title():
+    """title field omitted when empty."""
+    fm = build_frontmatter("ref", "", "Desc here.", "2026-07-04T12:00:00")
+    assert "title:" not in fm
+    assert 'type: "ref"' in fm
+    assert 'description: "Desc here."' in fm
+    assert 'timestamp: "2026-07-04T12:00:00"' in fm
 
 
 # --- CLI integration ---
@@ -204,7 +226,8 @@ def test_bundle_skip_root_file_without_default(tmp_path: Path, capsys):
     assert "[Standalone" not in root_idx
 
 
-def test_bundle_validation_error(tmp_path: Path):
+def test_bundle_lenient_parse(tmp_path: Path):
+    """Files without strict format are bundled leniently."""
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -216,8 +239,33 @@ def test_bundle_validation_error(tmp_path: Path):
     )
 
     result = runner.invoke(app, ["bundle", str(src), str(dst)])
-    assert result.exit_code == 1
-    assert "Line 1 must be" in result.output
+    assert result.exit_code == 0, result.output
+    assert (dst / "tables" / "bad.md").exists()
+    content = (dst / "tables" / "bad.md").read_text()
+    assert 'type: "tables"' in content
+    # No title in frontmatter since it wasn't found
+    assert "title:" not in content
+
+
+def test_bundle_no_title_index_fallback(tmp_path: Path):
+    """Index uses filename stem when concept has no title."""
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    _write_fixture(
+        src,
+        {
+            "tables/bad.md": "No heading here.\n> Desc.\n",
+        },
+    )
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 0, result.output
+
+    index = (dst / "tables" / "index.md").read_text()
+    # Should use filename stem "bad" as link text, not empty brackets
+    assert "[bad](bad.md)" in index
+    assert "[](" not in index
 
 
 def test_bundle_replaces_existing_output(tmp_path: Path):
