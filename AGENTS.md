@@ -65,7 +65,7 @@ okf-cli
 - `RESERVED` — filenames `bundle` skips: `index.md`, `log.md`, `README.md`.
 - `SPEC_RESERVED` — filenames reserved by the OKF spec: `index.md`, `log.md`.
 - `build_frontmatter(...)` — generates YAML frontmatter using JSON-escaped strings.
-- `parse_md(...)` — extracts title/description/body from plain markdown.
+- `parse_md(...)` — extracts title/description/body from plain markdown. Tries strict format first (line 1 `# Title`, `>` block); falls back leniently (title from line 0 only, description from first 80 chars of body). Never raises.
 - `parse_frontmatter(...)` — parses YAML frontmatter with `yaml.safe_load`.
 - `check_conformance(...)` — validates a directory against OKF §9, returns `(errors, warnings)`. Now enforces:
   - §9.1: Non-reserved `.md` must have parseable frontmatter.

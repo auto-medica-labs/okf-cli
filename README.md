@@ -1,6 +1,6 @@
 # okf-cli — Open Knowledge Format tooling
 
-Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write `# Title` then `> description` — `okf bundle` generates frontmatter, type, timestamps, and index files.
+Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write `# Title` then `> description` — `okf bundle` generates frontmatter, type, timestamps, and index files. Files without strict formatting are parsed leniently: title from line 0 if present, description from body text.
 
 Also validates bundles and lists concept IDs for consumption by other tools.
 
@@ -107,7 +107,9 @@ okf validate bundled/
 
 ## Writing input files (for `bundle`)
 
-Every `.md` file must start with:
+### Strict format (recommended)
+
+Every `.md` file starts with:
 
 ```markdown
 # Title
@@ -118,24 +120,23 @@ Every `.md` file must start with:
 
 Everything after the description block is preserved unchanged.
 
+### Lenient fallback
+
+Files that don't follow the strict format are still bundled best-effort:
+
+| Condition | Behavior |
+|---|---|
+| No `# Title` on line 1 | Title omitted from frontmatter |
+| No `>` description block | Description derived from first 80 chars of body ("…" if truncated) |
+| Root-level file without `--default-type` | Skip file, warn, continue |
+
 **Rules:**
 
 | Rule | Why |
 |---|---|
-| First line must be `# Title` | Tool reads title here |
-| Followed by `> Description` | Tool reads description here |
 | Folder name = concept type | `tables/orders.md` → `type: "tables"` |
 | Only `.md` files processed | Non-`.md` files ignored |
 | `index.md`, `log.md`, `README.md` skipped in `bundle` | Input may contain repo artifacts; these are not concepts. `bundle` warns when it skips them. Other commands (`list`, `show`, `validate`) operate on conformant OKF bundles where only `index.md` and `log.md` are reserved. |
-
-**Violations:**
-
-| Condition | Behavior |
-|---|---|
-| Line 1 not `# Title` | Error, stop |
-| Empty title | Error, stop |
-| No `> description` block | Error, stop |
-| Root-level file without `--default-type` | Skip file, warn, continue |
 
 Root files need `--default-type`. Otherwise put files in named folders.
 
@@ -144,9 +145,9 @@ See the [`example/`](example/) directory for a sample of how to structure files.
 ## How `bundle` works
 
 1. Walk `input-dir` for `.md` files (skip reserved names)
-2. Extract `title` from `#`, `description` from `>`
+2. Extract `title` from `#` on line 1, `description` from `>` block. If strict format not met, falls back: title omitted if absent, description from first 80 chars of body
 3. Set `type` from parent dir name, `timestamp` from file mtime
-4. Write concept files with YAML frontmatter
+4. Write concept files with YAML frontmatter (title field omitted if empty)
 5. Generate `index.md` per directory — `# Contents` for files, `# Directories` for subdirs (recursive)
 
 ## Output
