@@ -365,7 +365,7 @@ def test_parse_frontmatter_yaml_list():
 
 
 def test_parse_frontmatter_malformed_yaml():
-    text = "---\ntype: table\ntitle: \"unclosed\n---\n\nBody."
+    text = '---\ntype: table\ntitle: "unclosed\n---\n\nBody.'
     assert parse_frontmatter(text) is None
 
 
@@ -511,7 +511,7 @@ def test_validate_readme_missing_type_fails(tmp_path: Path):
 def test_validate_malformed_yaml_frontmatter(tmp_path: Path):
     src = tmp_path / "bundle"
     src.mkdir()
-    (src / "bad.md").write_text("---\ntype: table\ntitle: \"unclosed\n---\n\nBody.")
+    (src / "bad.md").write_text('---\ntype: table\ntitle: "unclosed\n---\n\nBody.')
 
     result = runner.invoke(app, ["validate", str(src)])
     assert result.exit_code == 1
@@ -521,7 +521,9 @@ def test_validate_malformed_yaml_frontmatter(tmp_path: Path):
 def test_validate_yaml_list_tag_parsed(tmp_path: Path):
     src = tmp_path / "bundle"
     src.mkdir()
-    (src / "tagged.md").write_text("---\ntype: table\ntags: [sales, orders]\n---\n\nBody.")
+    (src / "tagged.md").write_text(
+        "---\ntype: table\ntags: [sales, orders]\n---\n\nBody."
+    )
 
     result = runner.invoke(app, ["validate", str(src)])
     assert result.exit_code == 0, result.output
