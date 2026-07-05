@@ -264,6 +264,23 @@ def test_bundle_logmd_warning(tmp_path: Path):
     assert (dst / "tables" / "orders.md").exists()
 
 
+def test_bundle_indexmd_warning(tmp_path: Path):
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    (src / "index.md").write_text("# Index\n\n> Some index entry.\n")
+    (src / "tables").mkdir()
+    (src / "tables/orders.md").write_text("# Orders\n\n> One row.\n\nBody.")
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 0, result.output
+    assert "reserved filename" in result.output
+    assert "index.md" in result.output
+    # input index.md was skipped; output index.md is generated, not copied
+    assert "Some index entry" not in (dst / "index.md").read_text()
+    assert (dst / "tables" / "orders.md").exists()
+
+
 def test_bundle_readme_is_reserved(tmp_path: Path):
     """README.md is reserved and skipped."""
     src = tmp_path / "notes"
@@ -277,6 +294,8 @@ def test_bundle_readme_is_reserved(tmp_path: Path):
 
     result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
+    assert "reserved filename" in result.output
+    assert "README.md" in result.output
     assert not (dst / "tables" / "README.md").exists()
     assert (dst / "tables" / "orders.md").exists()
 
@@ -337,8 +356,21 @@ def test_parse_frontmatter_empty_file():
     assert parse_frontmatter("") is None
 
 
-def test_parse_frontmatter_only_dashes():
-    text = "---"
+def test_parse_frontmatter_yaml_list():
+    text = "---\ntype: table\ntags: [sales, orders]\n---\n\nBody."
+    fm = parse_frontmatter(text)
+    assert fm is not None
+    assert fm["type"] == "table"
+    assert fm["tags"] == ["sales", "orders"]
+
+
+def test_parse_frontmatter_malformed_yaml():
+    text = "---\ntype: table\ntitle: \"unclosed\n---\n\nBody."
+    assert parse_frontmatter(text) is None
+
+
+def test_parse_frontmatter_non_dict():
+    text = "---\n- just\n- a\n- list\n---\n\nBody."
     assert parse_frontmatter(text) is None
 
 
@@ -476,6 +508,35 @@ def test_validate_readme_missing_type_fails(tmp_path: Path):
     assert "missing or unparseable" in result.output
 
 
+def test_validate_malformed_yaml_frontmatter(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "bad.md").write_text("---\ntype: table\ntitle: \"unclosed\n---\n\nBody.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "missing or unparseable" in result.output
+
+
+def test_validate_yaml_list_tag_parsed(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tagged.md").write_text("---\ntype: table\ntags: [sales, orders]\n---\n\nBody.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output
+
+
+def test_validate_non_string_type_fails(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "bad.md").write_text("---\ntype: true\n---\n\nBody.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "missing non-empty 'type'" in result.output
+
+
 # --- CLI list ---
 
 
@@ -552,6 +613,17 @@ def test_list_readme_is_concept(tmp_path: Path):
     assert result.output.strip() == "README"
 
 
+def test_list_nonconformant_bundle_fails(tmp_path: Path):
+    """list must refuse to operate on a non-OKF directory."""
+    src = tmp_path / "notes"
+    src.mkdir()
+    (src / "plain.md").write_text("# Title\n\n> Desc.\n\nBody.")
+
+    result = runner.invoke(app, ["list", str(src)])
+    assert result.exit_code == 1
+    assert "not an OKF-conformant bundle" in result.output
+
+
 # --- CLI show ---
 
 
@@ -623,3 +695,14 @@ def test_show_not_a_directory(tmp_path: Path):
     result = runner.invoke(app, ["show", str(f), "whatever"])
     assert result.exit_code == 1
     assert "not a directory" in result.output
+
+
+def test_show_nonconformant_bundle_fails(tmp_path: Path):
+    """show must refuse to operate on a non-OKF directory."""
+    src = tmp_path / "notes"
+    src.mkdir()
+    (src / "plain.md").write_text("# Title\n\n> Desc.\n\nBody.")
+
+    result = runner.invoke(app, ["show", str(src), "plain"])
+    assert result.exit_code == 1
+    assert "not an OKF-conformant bundle" in result.output

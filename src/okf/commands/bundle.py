@@ -43,11 +43,10 @@ def bundle(
     for f in sorted(src.rglob("*.md")):
         lower = f.name.lower()
         if lower in RESERVED:
-            if lower == "log.md":
-                typer.echo(
-                    f"Warning: Skipping {f.relative_to(src)} — reserved filename '{f.name}' (not a concept)",
-                    err=True,
-                )
+            typer.echo(
+                f"Warning: Skipping {f.relative_to(src)} — reserved filename '{f.name}' (not a concept)",
+                err=True,
+            )
             continue
         md_files.append(f)
     if not md_files:

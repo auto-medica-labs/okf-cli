@@ -1,6 +1,10 @@
 """Shared OKF parsing and formatting utilities."""
 
 import json
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 RESERVED = frozenset({"index.md", "log.md", "readme.md"})
 SPEC_RESERVED = frozenset({"index.md", "log.md"})
@@ -66,11 +70,11 @@ def parse_md(text: str) -> tuple[str, str, str]:
     return title, description, body
 
 
-def parse_frontmatter(text: str) -> dict[str, str] | None:
+def parse_frontmatter(text: str) -> dict[str, Any] | None:
     """Parse YAML frontmatter from an OKF concept file.
 
     Returns dict of key-value pairs, or None if frontmatter is missing
-    or malformed (no opening ---, no closing ---).
+    or malformed (no opening ---, no closing ---, or invalid YAML).
     """
     lines = text.split("\n")
     if not lines or lines[0].strip() != "---":
@@ -78,11 +82,43 @@ def parse_frontmatter(text: str) -> dict[str, str] | None:
 
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":
-            result: dict[str, str] = {}
-            for line in lines[1:i]:
-                if ":" in line:
-                    key, _, val = line.partition(":")
-                    result[key.strip()] = val.strip()
+            content = "\n".join(lines[1:i])
+            try:
+                result = yaml.safe_load(content)
+            except yaml.YAMLError:
+                return None
+            if result is None:
+                return {}
+            if not isinstance(result, dict):
+                return None
             return result
 
     return None
+
+
+def check_conformance(dir_path: Path) -> tuple[list[str], list[str]]:
+    """Check OKF v0.1 conformance for a directory.
+
+    Returns (errors, warnings).  An empty directory produces no errors.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    for f in sorted(dir_path.rglob("*.md")):
+        rel = str(f.relative_to(dir_path))
+        name_lower = f.name.lower()
+        text = f.read_text(encoding="utf-8")
+
+        if name_lower in SPEC_RESERVED:
+            if name_lower == "index.md" and text.startswith("---"):
+                warnings.append(
+                    f"{rel}: index.md has frontmatter — "
+                    "only root index.md with okf_version is permitted (§11)"
+                )
+        else:
+            fm = parse_frontmatter(text)
+            if fm is None:
+                errors.append(f"{rel}: missing or unparseable YAML frontmatter")
+            elif not isinstance(fm.get("type"), str) or not str(fm["type"]).strip():
+                errors.append(f"{rel}: frontmatter missing non-empty 'type' field")
+
+    return errors, warnings

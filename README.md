@@ -44,7 +44,11 @@ okf list <directory>
 
 Prints concept IDs (bundle-relative path with `.md` stripped) for every
 concept file in the bundle. Reserved filenames (`index.md`, `log.md`)
-are excluded.
+are excluded. `README.md` is not reserved by the OKF spec and is listed
+as a concept if present.
+
+Requires the directory to be a valid OKF bundle; fails if any
+non-reserved `.md` is missing frontmatter or a non-empty `type`.
 
 ```bash
 okf list bundled/
@@ -70,6 +74,8 @@ Prints the full contents (frontmatter + body) of a concept file.
 Concept IDs are the bundle-relative path with `.md` stripped — exactly
 as printed by `okf list`.
 
+Requires the directory to be a valid OKF bundle.
+
 ```bash
 okf show bundled/ tables/orders
 # ---
@@ -91,7 +97,7 @@ parseable YAML frontmatter with a non-empty `type`.
 
 ```bash
 okf validate bundled/
-# 15 files: 15 ok
+# 16 files: 16 ok
 ```
 
 ## Writing input files (for `bundle`)
@@ -115,7 +121,7 @@ Everything after the description block is preserved unchanged.
 | Followed by `> Description` | Tool reads description here |
 | Folder name = concept type | `tables/orders.md` → `type: "tables"` |
 | Only `.md` files processed | Non-`.md` files ignored |
-| `index.md`, `log.md`, `README.md` skipped | OKF-reserved or common repo artifacts |
+| `index.md`, `log.md`, `README.md` skipped in `bundle` | Input may contain repo artifacts; these are not concepts. `bundle` warns when it skips them. Other commands (`list`, `show`, `validate`) operate on conformant OKF bundles where only `index.md` and `log.md` are reserved. |
 
 **Violations:**
 
@@ -179,7 +185,10 @@ Generated bundles conform to [OKF v0.1](OKF_SPEC.md) (§9):
 okf-cli
 ├── OKF_SPEC.md           # OKF specification
 ├── pyproject.toml        # uv-managed Python project
-├── src/okf/cli.py        # Single-file CLI
+├── src/okf/
+│   ├── cli.py            # Typer entrypoint
+│   ├── core.py           # Shared parsing/formatting
+│   └── commands/         # bundle, list, show, validate
 ├── tests/test_cli.py     # Tests
 └── example/              # Sample input markdown
 ```

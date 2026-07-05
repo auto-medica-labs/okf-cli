@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from okf.core import SPEC_RESERVED
+from okf.core import SPEC_RESERVED, check_conformance
 
 
 def cmd_show(
@@ -18,6 +18,13 @@ def cmd_show(
 
     if not dir_path.is_dir():
         typer.echo(f"Error: '{directory}' is not a directory", err=True)
+        raise typer.Exit(code=1)
+
+    errors, _warnings = check_conformance(dir_path)
+    if errors:
+        for e in errors:
+            typer.echo(f"Error: {e}", err=True)
+        typer.echo("\nDirectory is not an OKF-conformant bundle", err=True)
         raise typer.Exit(code=1)
 
     concept_path = dir_path / f"{concept_id}.md"
