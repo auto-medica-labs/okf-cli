@@ -8,9 +8,7 @@ from okf.core import SPEC_RESERVED
 
 
 def cmd_list(
-    directory: str = typer.Argument(
-        ..., help="Directory of the OKF bundle"
-    ),
+    directory: str = typer.Argument(..., help="Directory of the OKF bundle"),
 ) -> None:
     """List all concept IDs in an OKF bundle."""
     dir_path = Path(directory)

@@ -8,9 +8,7 @@ from okf.core import SPEC_RESERVED, parse_frontmatter
 
 
 def validate(
-    directory: str = typer.Argument(
-        ..., help="Directory to validate as an OKF bundle"
-    ),
+    directory: str = typer.Argument(..., help="Directory to validate as an OKF bundle"),
 ) -> None:
     """Check whether a directory conforms to the OKF specification.
 

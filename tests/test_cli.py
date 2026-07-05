@@ -393,9 +393,7 @@ def test_validate_index_md_no_frontmatter_ok(tmp_path: Path):
     src = tmp_path / "bundle"
     src.mkdir()
     (src / "tables").mkdir()
-    (src / "tables" / "orders.md").write_text(
-        "---\ntype: table\n---\n\nBody."
-    )
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
     (src / "index.md").write_text("# Contents\n\n* [Orders](tables/orders.md)")
 
     result = runner.invoke(app, ["validate", str(src)])
@@ -406,9 +404,7 @@ def test_validate_index_md_with_frontmatter_warns(tmp_path: Path):
     src = tmp_path / "bundle"
     src.mkdir()
     (src / "tables").mkdir()
-    (src / "tables" / "orders.md").write_text(
-        "---\ntype: table\n---\n\nBody."
-    )
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
     (src / "index.md").write_text("---\ntitle: Index\n---\n\n# Contents")
 
     result = runner.invoke(app, ["validate", str(src)])
@@ -421,9 +417,7 @@ def test_validate_log_md_is_skipped(tmp_path: Path):
     src = tmp_path / "bundle"
     src.mkdir()
     (src / "tables").mkdir()
-    (src / "tables" / "orders.md").write_text(
-        "---\ntype: table\n---\n\nBody."
-    )
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
     (src / "log.md").write_text("## 2026-01-01\n\n* **Update**: stuff")
 
     result = runner.invoke(app, ["validate", str(src)])
@@ -490,15 +484,9 @@ def test_list_concepts(tmp_path: Path):
     src.mkdir()
     (src / "tables").mkdir(parents=True)
     (src / "playbooks").mkdir()
-    (src / "tables" / "orders.md").write_text(
-        "---\ntype: table\n---\n\nBody."
-    )
-    (src / "tables" / "customers.md").write_text(
-        "---\ntype: table\n---\n\nBody."
-    )
-    (src / "playbooks" / "incident.md").write_text(
-        "---\ntype: playbook\n---\n\nBody."
-    )
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
+    (src / "tables" / "customers.md").write_text("---\ntype: table\n---\n\nBody.")
+    (src / "playbooks" / "incident.md").write_text("---\ntype: playbook\n---\n\nBody.")
     (src / "index.md").write_text("# Contents")
     (src / "log.md").write_text("## 2026-01-01")
 
@@ -527,9 +515,7 @@ def test_list_deeply_nested(tmp_path: Path):
     src = tmp_path / "bundle"
     src.mkdir()
     (src / "a" / "b" / "c").mkdir(parents=True)
-    (src / "a" / "b" / "c" / "deep.md").write_text(
-        "---\ntype: deep\n---\n\nBody."
-    )
+    (src / "a" / "b" / "c" / "deep.md").write_text("---\ntype: deep\n---\n\nBody.")
 
     result = runner.invoke(app, ["list", str(src)])
     assert result.exit_code == 0, result.output
@@ -573,14 +559,12 @@ def test_show_concept(tmp_path: Path):
     src = tmp_path / "bundle"
     src.mkdir()
     (src / "tables").mkdir()
-    (src / "tables" / "orders.md").write_text(
-        "---\ntype: table\n---\n\n# Schema\n"
-    )
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\n# Schema\n")
 
     result = runner.invoke(app, ["show", str(src), "tables/orders"])
     assert result.exit_code == 0, result.output
-    assert 'type: table' in result.output
-    assert '# Schema' in result.output
+    assert "type: table" in result.output
+    assert "# Schema" in result.output
 
 
 def test_show_root_concept(tmp_path: Path):

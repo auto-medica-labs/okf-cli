@@ -8,9 +8,7 @@ from okf.core import SPEC_RESERVED
 
 
 def cmd_show(
-    directory: str = typer.Argument(
-        ..., help="Directory of the OKF bundle"
-    ),
+    directory: str = typer.Argument(..., help="Directory of the OKF bundle"),
     concept_id: str = typer.Argument(
         ..., help="Concept ID to read (e.g. tables/orders)"
     ),
