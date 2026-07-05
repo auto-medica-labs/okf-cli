@@ -2,31 +2,27 @@
 
 Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write `# Title` then `> description` — `okf bundle` generates frontmatter, type, timestamps, and index files.
 
+Also validates bundles and lists concept IDs for consumption by other tools.
+
 ## Install
 
 ```bash
 uv tool install okf-cli
 ```
 
-Then run:
-
-```bash
-okf bundle example              # output → bundled/
-cat bundled/index.md
-cat bundled/tables/orders.md
-```
-
 ### Dev quickstart
 
 ```bash
 uv sync
-uv run okf example
+uv run okf --help
 ```
 
-## Usage
+## Commands
+
+### `okf bundle` — convert plain markdown to OKF bundle
 
 ```
-okf <input-dir> [output-dir] [--default-type <name>]
+okf bundle <input-dir> [output-dir] [--default-type <name>]
 ```
 
 | Argument | Description |
@@ -35,7 +31,70 @@ okf <input-dir> [output-dir] [--default-type <name>]
 | `output-dir` | Target directory (default: `bundled`) |
 | `--default-type` | Type for root-level files (skip root files if omitted) |
 
-## Writing input files
+```bash
+okf bundle example              # output → bundled/
+cat bundled/tables/orders.md
+```
+
+### `okf list` — list concept IDs in a bundle
+
+```
+okf list <directory>
+```
+
+Prints concept IDs (bundle-relative path with `.md` stripped) for every
+concept file in the bundle. Reserved filenames (`index.md`, `log.md`)
+are excluded.
+
+```bash
+okf list bundled/
+# datasets/sales
+# playbooks/incident-response
+# tables/orders
+# …
+```
+
+Useful for piping OKF bundles into other tooling:
+
+```bash
+okf list bundled/ | xargs -I{} okf show bundled/ {}
+```
+
+### `okf show` — read a concept by ID
+
+```
+okf show <directory> <concept-id>
+```
+
+Prints the full contents (frontmatter + body) of a concept file.
+Concept IDs are the bundle-relative path with `.md` stripped — exactly
+as printed by `okf list`.
+
+```bash
+okf show bundled/ tables/orders
+# ---
+# type: "tables"
+# title: "Customer Orders"
+# ...
+```
+
+Guards against path traversal and rejects reserved filenames.
+
+### `okf validate` — check OKF conformance
+
+```
+okf validate <directory>
+```
+
+Checks OKF v0.1 §9 conformance: verifies every non-reserved `.md` has
+parseable YAML frontmatter with a non-empty `type`.
+
+```bash
+okf validate bundled/
+# 15 files: 15 ok
+```
+
+## Writing input files (for `bundle`)
 
 Every `.md` file must start with:
 
@@ -46,7 +105,7 @@ Every `.md` file must start with:
 > Second optional description line.
 ```
 
-Everything after the description block is free-form — preserved unchanged.
+Everything after the description block is preserved unchanged.
 
 **Rules:**
 
@@ -56,7 +115,7 @@ Everything after the description block is free-form — preserved unchanged.
 | Followed by `> Description` | Tool reads description here |
 | Folder name = concept type | `tables/orders.md` → `type: "tables"` |
 | Only `.md` files processed | Non-`.md` files ignored |
-| Reserved names skipped: `index.md`, `log.md`, `README.md` | OKF spec reserves these |
+| `index.md`, `log.md`, `README.md` skipped | OKF-reserved or common repo artifacts |
 
 **Violations:**
 
@@ -71,7 +130,7 @@ Root files need `--default-type`. Otherwise put files in named folders.
 
 See the [`example/`](example/) directory for a sample of how to structure files.
 
-## How it works
+## How `bundle` works
 
 1. Walk `input-dir` for `.md` files (skip reserved names)
 2. Extract `title` from `#`, `description` from `>`
