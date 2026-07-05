@@ -22,7 +22,7 @@ uv run okf --help
 ### `okf bundle` — convert plain markdown to OKF bundle
 
 ```
-okf bundle <input-dir> [output-dir] [--default-type <name>]
+okf bundle <input-dir> [output-dir] [--default-type <name>] [--force]
 ```
 
 | Argument | Description |
@@ -30,9 +30,11 @@ okf bundle <input-dir> [output-dir] [--default-type <name>]
 | `input-dir` | Directory of plain `.md` files |
 | `output-dir` | Target directory (default: `bundled`) |
 | `--default-type` | Type for root-level files (skip root files if omitted) |
+| `--force`, `-f` | Overwrite output directory if it exists |
 
 ```bash
-okf bundle example              # output → bundled/
+okf bundle example --default-type reference  # first run → bundled/
+okf bundle example --default-type reference --force  # re-run
 cat bundled/tables/orders.md
 ```
 
@@ -92,8 +94,11 @@ Guards against path traversal and rejects reserved filenames.
 okf validate <directory>
 ```
 
-Checks OKF v0.1 §9 conformance: verifies every non-reserved `.md` has
-parseable YAML frontmatter with a non-empty `type`.
+Checks OKF v0.1 §9 conformance:
+
+- Every non-reserved `.md` has parseable YAML frontmatter with non-empty `type`.
+- Reserved filenames (`index.md`, `log.md`) follow spec structure (§6/§7).
+- Non-UTF-8 files are flagged.
 
 ```bash
 okf validate bundled/
@@ -183,8 +188,9 @@ Generated bundles conform to [OKF v0.1](OKF_SPEC.md) (§9):
 
 ```
 okf-cli
-├── OKF_SPEC.md           # OKF specification
-├── pyproject.toml        # uv-managed Python project
+├── .github/workflows/test.yml  # CI
+├── OKF_SPEC.md                 # OKF specification
+├── pyproject.toml              # uv-managed Python project
 ├── src/okf/
 │   ├── cli.py            # Typer entrypoint
 │   ├── core.py           # Shared parsing/formatting

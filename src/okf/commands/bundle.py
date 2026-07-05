@@ -1,6 +1,5 @@
 """okf bundle command."""
 
-import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +19,9 @@ def bundle(
     default_type: str = typer.Option(
         None, help="Type for root-level files (skip root files if omitted)"
     ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite output directory if it exists"
+    ),
 ) -> None:
     """Convert plain markdown into an OKF-conformant knowledge bundle.
 
@@ -35,6 +37,13 @@ def bundle(
         raise typer.Exit(code=1)
 
     if dst.exists():
+        if not force:
+            typer.echo(
+                f"Error: output directory '{output_dir}' exists. "
+                "Use --force to overwrite.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
         shutil.rmtree(dst)
         typer.echo(f"Removed existing '{output_dir}'", err=True)
 
@@ -82,8 +91,7 @@ def bundle(
             raise typer.Exit(code=1)
 
         # Timestamp from file mtime
-        mtime = os.path.getmtime(f)
-        ts = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+        ts = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat()
 
         # Build and write
         frontmatter = build_frontmatter(type_name, title, description, ts)

@@ -14,11 +14,12 @@ inspect/validate them.
 
 ## Tech stack
 
-- Python 3.13+
+- Python 3.11+
 - Package/venv manager: **uv**
 - CLI framework: **typer**
 - YAML parsing: **pyyaml**
 - Tests: **pytest**
+- Lint/format: **ruff** (via `uvx ruff check .` / `uvx ruff format .`)
 - Build: hatchling (configured in `pyproject.toml`)
 
 Always use `uv` for dependency sync and running commands:
@@ -27,13 +28,14 @@ Always use `uv` for dependency sync and running commands:
 uv sync                  # install/sync deps
 uv run pytest -q           # run tests
 uv run okf --help          # run CLI
-uv run okf bundle example bundled --default-type reference
+uv run okf bundle example bundled --default-type reference --force
 ```
 
 ## Project layout
 
 ```
 okf-cli
+├── .github/workflows/test.yml # CI (pytest on 3.11, 3.13)
 ├── OKF_SPEC.md              # OKF v0.1 specification
 ├── README.md                # user-facing docs
 ├── AGENTS.md                # this file
@@ -65,16 +67,20 @@ okf-cli
 - `build_frontmatter(...)` — generates YAML frontmatter using JSON-escaped strings.
 - `parse_md(...)` — extracts title/description/body from plain markdown.
 - `parse_frontmatter(...)` — parses YAML frontmatter with `yaml.safe_load`.
-- `check_conformance(...)` — validates a directory against OKF §9, returns `(errors, warnings)`.
+- `check_conformance(...)` — validates a directory against OKF §9, returns `(errors, warnings)`. Now enforces:
+  - §9.1: Non-reserved `.md` must have parseable frontmatter.
+  - §9.2: Frontmatter must have non-empty `type`.
+  - §9.3: `index.md` must not contain frontmatter (§6), except root `index.md` may have only `okf_version` (§11). `log.md` must not contain frontmatter (§7).
+  - Non-UTF-8 files are flagged as errors.
 
 ### Commands
 
 | Command | Input expected | Behavior |
 |---|---|---|
-| `bundle` | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; root files need `--default-type` |
+| `bundle` | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; root files need `--default-type`; requires `--force` to overwrite existing output |
 | `list` | OKF-conformant bundle | prints concept IDs; exits 1 if dir is not conformant |
 | `show` | OKF-conformant bundle | prints concept file by ID; exits 1 if dir is not conformant |
-| `validate` | OKF-conformant bundle | prints conformance errors/warnings and summary |
+| `validate` | any directory | prints conformance errors and summary per §9 |
 
 ## Key conventions
 
@@ -91,6 +97,9 @@ okf-cli
 1. Every non-reserved `.md` must have parseable YAML frontmatter.
 2. Every frontmatter must contain a non-empty `type` string.
 3. Reserved filenames (`index.md`, `log.md`) follow structure per §6/§7 when present.
+   - `index.md` must not contain frontmatter (§6), except root `index.md` may contain only `okf_version` (§11).
+   - `log.md` must not contain frontmatter (§7).
+4. All files must be valid UTF-8.
 
 `check_conformance()` is the source of truth for this logic.
 
@@ -127,12 +136,12 @@ Add tests for new behavior in `tests/test_cli.py`. Existing patterns:
 ### Regenerate the example bundle
 
 ```bash
-uv run okf bundle example bundled --default-type reference
+uv run okf bundle example bundled --default-type reference --force
 uv run okf validate bundled
 uv run okf list bundled
 ```
 
-`bundled/` is gitignored; it is only a local artifact.
+`bundled/` is gitignored; it is only a local artifact. Use `--force` for re-runs.
 
 ### Add a new CLI command
 

@@ -100,20 +100,43 @@ def check_conformance(dir_path: Path) -> tuple[list[str], list[str]]:
     """Check OKF v0.1 conformance for a directory.
 
     Returns (errors, warnings).  An empty directory produces no errors.
+
+    §9 rules enforced:
+    1. Every non-reserved .md file must have parseable YAML frontmatter.
+    2. Every frontmatter must contain a non-empty 'type' field.
+    3. Reserved filenames (index.md, log.md) follow spec structure:
+       - index.md must not contain frontmatter (§6), except root
+         index.md may contain only 'okf_version' (§11).
+       - log.md must not contain frontmatter (§7).
     """
     errors: list[str] = []
     warnings: list[str] = []
     for f in sorted(dir_path.rglob("*.md")):
         rel = str(f.relative_to(dir_path))
         name_lower = f.name.lower()
-        text = f.read_text(encoding="utf-8")
+        try:
+            text = f.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            errors.append(f"{rel}: file is not valid UTF-8")
+            continue
 
         if name_lower in SPEC_RESERVED:
-            if name_lower == "index.md" and text.startswith("---"):
-                warnings.append(
-                    f"{rel}: index.md has frontmatter — "
-                    "only root index.md with okf_version is permitted (§11)"
-                )
+            fm = parse_frontmatter(text)
+
+            if name_lower == "index.md" and fm is not None:
+                if rel == "index.md":
+                    # Root index.md — only okf_version allowed per §11
+                    extra = set(fm.keys()) - {"okf_version"}
+                    if extra:
+                        errors.append(
+                            f"{rel}: index.md frontmatter may only contain "
+                            f"'okf_version' (§11)"
+                        )
+                else:
+                    errors.append(f"{rel}: index.md must not contain frontmatter (§6)")
+
+            elif name_lower == "log.md" and fm is not None:
+                errors.append(f"{rel}: log.md must not contain frontmatter (§7)")
         else:
             fm = parse_frontmatter(text)
             if fm is None:

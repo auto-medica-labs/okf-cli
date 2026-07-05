@@ -229,11 +229,25 @@ def test_bundle_replaces_existing_output(tmp_path: Path):
     (dst / "leftover.txt").write_text("should be gone")
     _write_fixture(src, {"tables/a.md": "# A\n\n> Desc.\n"})
 
-    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--force"])
     assert result.exit_code == 0, result.output
     assert "Removed existing" in result.output
     assert (dst / "tables" / "a.md").exists()
     assert not (dst / "leftover.txt").exists()
+
+
+def test_bundle_refuses_overwrite_without_force(tmp_path: Path):
+    """bundle errors if output exists and --force not given."""
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    dst.mkdir()
+    _write_fixture(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 1, result.output
+    assert "exists" in result.output
+    assert "--force" in result.output
 
 
 def test_bundle_no_md_files(tmp_path: Path):
@@ -432,17 +446,17 @@ def test_validate_index_md_no_frontmatter_ok(tmp_path: Path):
     assert result.exit_code == 0, result.output
 
 
-def test_validate_index_md_with_frontmatter_warns(tmp_path: Path):
+def test_validate_index_md_with_frontmatter_fails(tmp_path: Path):
+    """Non-root index.md with frontmatter is a conformance error per §6."""
     src = tmp_path / "bundle"
     src.mkdir()
     (src / "tables").mkdir()
     (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
-    (src / "index.md").write_text("---\ntitle: Index\n---\n\n# Contents")
+    (src / "tables" / "index.md").write_text("---\ntitle: Index\n---\n\n# Contents")
 
     result = runner.invoke(app, ["validate", str(src)])
-    assert result.exit_code == 0, result.output  # warning, not error
-    assert "Warning:" in result.output
-    assert "index.md" in result.output
+    assert result.exit_code == 1, result.output
+    assert "index.md must not contain frontmatter" in result.output
 
 
 def test_validate_log_md_is_skipped(tmp_path: Path):
@@ -474,18 +488,60 @@ def test_validate_no_md_files(tmp_path: Path):
     assert "No .md files" in result.output
 
 
-def test_validate_mixed_errors_and_warnings(tmp_path: Path):
+def test_validate_root_index_md_okf_version_ok(tmp_path: Path):
+    """Root index.md with only okf_version is permitted per §11."""
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
+    (src / "index.md").write_text(
+        '---\nokf_version: "0.1"\n---\n\n# Contents\n\n* [Orders](tables/orders.md)'
+    )
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output
+
+
+def test_validate_root_index_md_extra_fields_fails(tmp_path: Path):
+    """Root index.md with fields other than okf_version is an error."""
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
+    (src / "index.md").write_text(
+        '---\nokf_version: "0.1"\ntitle: Extra\n---\n\n# Contents'
+    )
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1, result.output
+    assert "index.md frontmatter may only contain" in result.output
+
+
+def test_validate_log_md_with_frontmatter_fails(tmp_path: Path):
+    """log.md with frontmatter is a conformance error per §7."""
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables" / "orders.md").write_text("---\ntype: table\n---\n\nBody.")
+    (src / "log.md").write_text("---\nversion: 1\n---\n\n## 2026-01-01")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1, result.output
+    assert "log.md must not contain frontmatter" in result.output
+
+
+def test_validate_mixed_errors(tmp_path: Path):
+    """Multiple conformance errors are all reported."""
     src = tmp_path / "bundle"
     src.mkdir()
     (src / "good.md").write_text("---\ntype: ref\n---\n\nBody.")
     (src / "bad.md").write_text("No frontmatter.")
-    (src / "index.md").write_text("---\nstuff: yes\n---\n\n# Index")
+    (src / "index.md").write_text("---\ntitle: Nope\n---\n\n# Index")
 
     result = runner.invoke(app, ["validate", str(src)])
     assert result.exit_code == 1
-    assert "1 errors" in result.output
-    assert "1 warnings" in result.output
-    assert "2 ok" in result.output
+    assert "2 errors" in result.output
+    assert "1 ok" in result.output
 
 
 def test_validate_readme_is_concept(tmp_path: Path):
@@ -537,6 +593,18 @@ def test_validate_non_string_type_fails(tmp_path: Path):
     result = runner.invoke(app, ["validate", str(src)])
     assert result.exit_code == 1
     assert "missing non-empty 'type'" in result.output
+
+
+def test_validate_non_utf8_file(tmp_path: Path):
+    """Non-UTF-8 files are reported cleanly, not a traceback."""
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "valid.md").write_text("---\ntype: ref\n---\n\nBody.")
+    (src / "bad.md").write_bytes(b"\xff\xfe# Title\n> Desc\n")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "not valid UTF-8" in result.output
 
 
 # --- CLI list ---

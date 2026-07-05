@@ -15,6 +15,7 @@ def validate(
     Validates OKF v0.1 conformance per §9:
     - Every non-reserved .md file must have parseable YAML frontmatter.
     - Every frontmatter must have a non-empty 'type' field.
+    - Reserved filenames (index.md, log.md) follow spec structure.
     """
     dir_path = Path(directory)
 

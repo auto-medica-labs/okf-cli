@@ -1,4 +1,6 @@
-"""okf bundle — Plain markdown to OKF bundle converter."""
+"""okf — Open Knowledge Format tooling."""
+
+from importlib.metadata import version as _version
 
 import typer
 
@@ -14,10 +16,23 @@ app = typer.Typer(
 )
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"okf {_version('okf-cli')}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main() -> None:
+def main(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show version and exit",
+    ),
+) -> None:
     """Convert plain markdown into OKF-conformant knowledge bundles."""
-    pass
 
 
 app.command()(bundle)
