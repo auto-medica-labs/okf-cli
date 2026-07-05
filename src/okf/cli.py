@@ -229,5 +229,89 @@ def bundle(
     typer.echo(f"Done. Converted {n} file{'s' if n != 1 else ''} → {dst}")
 
 
+def _parse_frontmatter(text: str) -> dict[str, str] | None:
+    """Parse YAML frontmatter from an OKF concept file.
+
+    Returns dict of key-value pairs, or None if frontmatter is missing
+    or malformed (no opening ---, no closing ---).
+    """
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None
+
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            result: dict[str, str] = {}
+            for line in lines[1:i]:
+                if ":" in line:
+                    key, _, val = line.partition(":")
+                    result[key.strip()] = val.strip()
+            return result
+
+    return None
+
+
+@app.command()
+def validate(
+    directory: str = typer.Argument(
+        ..., help="Directory to validate as an OKF bundle"
+    ),
+) -> None:
+    """Check whether a directory conforms to the OKF specification.
+
+    Validates OKF v0.1 conformance per §9:
+    - Every non-reserved .md file must have parseable YAML frontmatter.
+    - Every frontmatter must have a non-empty 'type' field.
+    """
+    dir_path = Path(directory)
+
+    if not dir_path.is_dir():
+        typer.echo(f"Error: '{directory}' is not a directory", err=True)
+        raise typer.Exit(code=1)
+
+    md_files = sorted(dir_path.rglob("*.md"))
+    if not md_files:
+        typer.echo("No .md files found", err=True)
+        raise typer.Exit(code=1)
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    reserved = frozenset({"index.md", "log.md"})
+
+    for f in md_files:
+        rel = str(f.relative_to(dir_path))
+        name_lower = f.name.lower()
+        text = f.read_text(encoding="utf-8")
+
+        if name_lower in reserved:
+            if name_lower == "index.md" and text.startswith("---"):
+                warnings.append(
+                    f"{rel}: index.md has frontmatter — "
+                    "only root index.md with okf_version is permitted (§11)"
+                )
+        else:
+            fm = _parse_frontmatter(text)
+            if fm is None:
+                errors.append(f"{rel}: missing or unparseable YAML frontmatter")
+            elif not fm.get("type"):
+                errors.append(f"{rel}: frontmatter missing non-empty 'type' field")
+
+    for w in warnings:
+        typer.echo(f"Warning: {w}", err=True)
+    for e in errors:
+        typer.echo(f"Error: {e}", err=True)
+
+    ok = len(md_files) - len(errors)
+    parts = [f"{len(md_files)} files: {ok} ok"]
+    if errors:
+        parts.append(f"{len(errors)} errors")
+    if warnings:
+        parts.append(f"{len(warnings)} warnings")
+    typer.echo("\n" + ", ".join(parts))
+
+    if errors:
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()

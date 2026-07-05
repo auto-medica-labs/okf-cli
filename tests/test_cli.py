@@ -5,7 +5,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from okf.cli import app, _parse_md, _build_frontmatter
+from okf.cli import app, _parse_frontmatter, _parse_md, _build_frontmatter
 
 runner = CliRunner()
 
@@ -302,3 +302,180 @@ def test_frontmatter_yaml_parseable(tmp_path: Path):
             continue
         key, _, raw_val = line.partition(": ")
         assert json.loads(raw_val), f"Value for {key} is not valid JSON: {raw_val}"
+
+
+# --- _parse_frontmatter ---
+
+
+def test_parse_frontmatter_basic():
+    text = "---\ntype: table\ntitle: Orders\n---\n\nBody."
+    fm = _parse_frontmatter(text)
+    assert fm is not None
+    assert fm["type"] == "table"
+    assert fm["title"] == "Orders"
+
+
+def test_parse_frontmatter_missing_opening():
+    text = "type: table\n---\nBody."
+    assert _parse_frontmatter(text) is None
+
+
+def test_parse_frontmatter_missing_closing():
+    text = "---\ntype: table\nBody."
+    assert _parse_frontmatter(text) is None
+
+
+def test_parse_frontmatter_empty():
+    text = "---\n---\nBody."
+    fm = _parse_frontmatter(text)
+    assert fm is not None
+    assert fm == {}
+
+
+def test_parse_frontmatter_empty_file():
+    assert _parse_frontmatter("") is None
+
+
+def test_parse_frontmatter_only_dashes():
+    text = "---"
+    assert _parse_frontmatter(text) is None
+
+
+# --- CLI validate ---
+
+
+def test_validate_valid_bundle(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables" / "orders.md").write_text(
+        "---\ntype: BigQuery Table\ntitle: Orders\n---\n\nBody."
+    )
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output
+    assert "1 files: 1 ok" in result.output
+
+
+def test_validate_missing_frontmatter(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "bad.md").write_text("# Just a heading\n\nNo frontmatter.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "missing or unparseable" in result.output
+    assert "0 ok" in result.output
+
+
+def test_validate_missing_type(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "notype.md").write_text("---\ntitle: Something\n---\n\nBody.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "missing non-empty 'type'" in result.output
+
+
+def test_validate_empty_type(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "emptytype.md").write_text("---\ntype:\n---\n\nBody.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "missing non-empty 'type'" in result.output
+
+
+def test_validate_index_md_no_frontmatter_ok(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables" / "orders.md").write_text(
+        "---\ntype: table\n---\n\nBody."
+    )
+    (src / "index.md").write_text("# Contents\n\n* [Orders](tables/orders.md)")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output
+
+
+def test_validate_index_md_with_frontmatter_warns(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables" / "orders.md").write_text(
+        "---\ntype: table\n---\n\nBody."
+    )
+    (src / "index.md").write_text("---\ntitle: Index\n---\n\n# Contents")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output  # warning, not error
+    assert "Warning:" in result.output
+    assert "index.md" in result.output
+
+
+def test_validate_log_md_is_skipped(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "tables").mkdir()
+    (src / "tables" / "orders.md").write_text(
+        "---\ntype: table\n---\n\nBody."
+    )
+    (src / "log.md").write_text("## 2026-01-01\n\n* **Update**: stuff")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output
+
+
+def test_validate_not_a_directory(tmp_path: Path):
+    f = tmp_path / "notadir"
+    f.write_text("hello")
+
+    result = runner.invoke(app, ["validate", str(f)])
+    assert result.exit_code == 1
+    assert "not a directory" in result.output
+
+
+def test_validate_no_md_files(tmp_path: Path):
+    src = tmp_path / "empty"
+    src.mkdir()
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "No .md files" in result.output
+
+
+def test_validate_mixed_errors_and_warnings(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "good.md").write_text("---\ntype: ref\n---\n\nBody.")
+    (src / "bad.md").write_text("No frontmatter.")
+    (src / "index.md").write_text("---\nstuff: yes\n---\n\n# Index")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "1 errors" in result.output
+    assert "1 warnings" in result.output
+    assert "2 ok" in result.output
+
+
+def test_validate_readme_is_concept(tmp_path: Path):
+    """README.md is NOT reserved in the spec — must have frontmatter + type."""
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "README.md").write_text("---\ntype: readme\n---\n\nReadme body.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output
+
+
+def test_validate_readme_missing_type_fails(tmp_path: Path):
+    src = tmp_path / "bundle"
+    src.mkdir()
+    (src / "README.md").write_text("Just a readme without frontmatter.")
+
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 1
+    assert "missing or unparseable" in result.output
