@@ -25,12 +25,12 @@ uv run okf --help
 okf bundle <input-dir> [output-dir] [--default-type <name>] [--force]
 ```
 
-| Argument | Description |
-|---|---|
-| `input-dir` | Directory of plain `.md` files |
-| `output-dir` | Target directory (default: `bundled`) |
+| Argument         | Description                                            |
+| ---------------- | ------------------------------------------------------ |
+| `input-dir`      | Directory of plain `.md` files                         |
+| `output-dir`     | Target directory (default: `bundled`)                  |
 | `--default-type` | Type for root-level files (skip root files if omitted) |
-| `--force`, `-f` | Overwrite output directory if it exists |
+| `--force`, `-f`  | Overwrite output directory if it exists                |
 
 ```bash
 okf bundle example --default-type reference  # first run → bundled/
@@ -124,18 +124,18 @@ Everything after the description block is preserved unchanged.
 
 Files that don't follow the strict format are still bundled best-effort:
 
-| Condition | Behavior |
-|---|---|
-| No `# Title` on line 1 | Title omitted from frontmatter |
-| No `>` description block | Description derived from first 80 chars of body ("…" if truncated) |
-| Root-level file without `--default-type` | Skip file, warn, continue |
+| Condition                                | Behavior                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| No `# Title` on line 1                   | Title omitted from frontmatter                                     |
+| No `>` description block                 | Description derived from first 80 chars of body ("…" if truncated) |
+| Root-level file without `--default-type` | Skip file, warn, continue                                          |
 
 **Rules:**
 
-| Rule | Why |
-|---|---|
-| Folder name = concept type | `tables/orders.md` → `type: "tables"` |
-| Only `.md` files processed | Non-`.md` files ignored |
+| Rule                                                  | Why                                                                                                                                                                                                                         |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Folder name = concept type                            | `tables/orders.md` → `type: "tables"`                                                                                                                                                                                       |
+| Only `.md` files processed                            | Non-`.md` files ignored                                                                                                                                                                                                     |
 | `index.md`, `log.md`, `README.md` skipped in `bundle` | Input may contain repo artifacts; these are not concepts. `bundle` warns when it skips them. Other commands (`list`, `show`, `validate`) operate on conformant OKF bundles where only `index.md` and `log.md` are reserved. |
 
 Root files need `--default-type`. Otherwise put files in named folders.
@@ -145,10 +145,10 @@ See the [`example/`](example/) directory for a sample of how to structure files.
 ## How `bundle` works
 
 1. Walk `input-dir` for `.md` files (skip reserved names)
-2. Extract `title` from `#` on line 1, `description` from `>` block. If strict format not met, falls back: title omitted if absent, description from first 80 chars of body
-3. Set `type` from parent dir name, `timestamp` from file mtime
-4. Write concept files with YAML frontmatter (title field omitted if empty)
-5. Generate `index.md` per directory — `# Contents` for files, `# Directories` for subdirs (recursive)
+1. Extract `title` from `#` on line 1, `description` from `>` block. If strict format not met, falls back: title omitted if absent, description from first 80 chars of body
+1. Set `type` from parent dir name, `timestamp` from file mtime
+1. Write concept files with YAML frontmatter (title field omitted if empty)
+1. Generate `index.md` per directory — `# Contents` for files, `# Directories` for subdirs (recursive)
 
 ## Output
 

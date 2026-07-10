@@ -75,12 +75,12 @@ okf-cli
 
 ### Commands
 
-| Command | Input expected | Behavior |
-|---|---|---|
-| `bundle` | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; root files need `--default-type`; requires `--force` to overwrite existing output |
-| `list` | OKF-conformant bundle | prints concept IDs; exits 1 if dir is not conformant |
-| `show` | OKF-conformant bundle | prints concept file by ID; exits 1 if dir is not conformant |
-| `validate` | any directory | prints conformance errors and summary per §9 |
+| Command    | Input expected                    | Behavior                                                                                                                                                       |
+| ---------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bundle`   | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; root files need `--default-type`; requires `--force` to overwrite existing output |
+| `list`     | OKF-conformant bundle             | prints concept IDs; exits 1 if dir is not conformant                                                                                                           |
+| `show`     | OKF-conformant bundle             | prints concept file by ID; exits 1 if dir is not conformant                                                                                                    |
+| `validate` | any directory                     | prints conformance errors and summary per §9                                                                                                                   |
 
 ## Key conventions
 
@@ -95,11 +95,11 @@ okf-cli
 ### OKF conformance (§9)
 
 1. Every non-reserved `.md` must have parseable YAML frontmatter.
-2. Every frontmatter must contain a non-empty `type` string.
-3. Reserved filenames (`index.md`, `log.md`) follow structure per §6/§7 when present.
+1. Every frontmatter must contain a non-empty `type` string.
+1. Reserved filenames (`index.md`, `log.md`) follow structure per §6/§7 when present.
    - `index.md` must not contain frontmatter (§6), except root `index.md` may contain only `okf_version` (§11).
    - `log.md` must not contain frontmatter (§7).
-4. All files must be valid UTF-8.
+1. All files must be valid UTF-8.
 
 `check_conformance()` is the source of truth for this logic.
 
@@ -146,9 +146,9 @@ uv run okf list bundled
 ### Add a new CLI command
 
 1. Create `src/okf/commands/<name>.py` with a function taking `typer` arguments.
-2. Import and register it in `src/okf/cli.py` with `app.command()(fn)` or
+1. Import and register it in `src/okf/cli.py` with `app.command()(fn)` or
    `app.command("alias")(fn)`.
-3. Add tests in `tests/test_cli.py`.
+1. Add tests in `tests/test_cli.py`.
 
 ### Modify conformance behavior
 

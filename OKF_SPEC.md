@@ -12,7 +12,7 @@ YAML frontmatter. There is no schema registry, no central authority, and
 no required tooling. If you can `cat` a file, you can read OKF; if you
 can `git clone` a repo, you can ship it.
 
----
+______________________________________________________________________
 
 ## 1. Motivation
 
@@ -33,9 +33,9 @@ of structural conventions needed to make a knowledge corpus
 ### Goals
 
 1. Define a universal format that **enrichment agents** can write into.
-2. Inform how **consumption agents** should read and traverse it.
-3. Facilitate **exchange** of knowledge across systems and organizations.
-4. Standardize the small number of **required** fields that must be
+1. Inform how **consumption agents** should read and traverse it.
+1. Facilitate **exchange** of knowledge across systems and organizations.
+1. Standardize the small number of **required** fields that must be
    present for content to be meaningfully consumed.
 
 ### Non-goals
@@ -45,7 +45,7 @@ of structural conventions needed to make a knowledge corpus
 - Replacing domain-specific schemas (Avro, Protobuf, OpenAPI, etc.) —
   OKF *references* them; it does not subsume them.
 
----
+______________________________________________________________________
 
 ## 2. Terminology
 
@@ -66,7 +66,7 @@ of structural conventions needed to make a knowledge corpus
 - **Citation** — A link from a concept to an external source that
   supports a claim in the body.
 
----
+______________________________________________________________________
 
 ## 3. Bundle Structure
 
@@ -97,10 +97,10 @@ A bundle MAY be distributed as:
 The following filenames have defined meaning at any level of the
 hierarchy and MUST NOT be used for concept documents:
 
-| Filename     | Purpose                                                |
-|--------------|--------------------------------------------------------|
-| `index.md`   | Directory listing. See §6.                             |
-| `log.md`     | Update history. See §7.                                |
+| Filename   | Purpose                    |
+| ---------- | -------------------------- |
+| `index.md` | Directory listing. See §6. |
+| `log.md`   | Update history. See §7.    |
 
 All other `.md` files are concept documents.
 
@@ -109,7 +109,7 @@ frontmatter field in §4.1. OKF does not specify a separate file format
 for aggregating documents by tag; producers that want a tag-browsing
 view can synthesize one at consumption time by scanning frontmatter.
 
----
+______________________________________________________________________
 
 ## 4. Concept Documents
 
@@ -117,7 +117,7 @@ Every concept is a UTF-8 markdown file. It has two parts:
 
 1. A **YAML frontmatter block**, delimited by `---` on its own line at
    the start of the file and a closing `---` on its own line.
-2. A **markdown body**, containing free-form content.
+1. A **markdown body**, containing free-form content.
 
 ### 4.1 Frontmatter
 
@@ -170,11 +170,11 @@ prose, since structure aids both human reading and agent retrieval.
 There are no required body sections. The following section headings have
 **conventional** meaning and SHOULD be used when applicable:
 
-| Heading        | Purpose                                                |
-|----------------|--------------------------------------------------------|
-| `# Schema`     | Structured description of an asset's columns/fields.   |
-| `# Examples`   | Concrete usage examples, often as fenced code blocks.  |
-| `# Citations`  | External sources backing claims in the body. See §8.   |
+| Heading       | Purpose                                               |
+| ------------- | ----------------------------------------------------- |
+| `# Schema`    | Structured description of an asset's columns/fields.  |
+| `# Examples`  | Concrete usage examples, often as fenced code blocks. |
+| `# Citations` | External sources backing claims in the body. See §8.  |
 
 ### 4.3 Example: a concept bound to a resource
 
@@ -228,7 +228,7 @@ its expected SLA. See the [orders table](/tables/orders.md).
 2. …
 ```
 
----
+______________________________________________________________________
 
 ## 5. Cross-linking
 
@@ -266,7 +266,7 @@ Consumers MUST tolerate broken links — a link whose target does not
 exist in the bundle is not malformed; it may simply represent
 not-yet-written knowledge.
 
----
+______________________________________________________________________
 
 ## 6. Index Files
 
@@ -293,7 +293,7 @@ Entries SHOULD include the description from the linked concept's
 frontmatter. Producers MAY generate `index.md` automatically; consumers
 MAY synthesize one on the fly when none is present.
 
----
+______________________________________________________________________
 
 ## 7. Log Files (optional)
 
@@ -317,7 +317,7 @@ Date headings MUST use ISO 8601 `YYYY-MM-DD` form. Log entries are
 prose; the leading bold word (`**Update**`, `**Creation**`,
 `**Deprecation**`, etc.) is a convention, not a requirement.
 
----
+______________________________________________________________________
 
 ## 8. Citations
 
@@ -336,7 +336,7 @@ Citation links MAY be absolute URLs, bundle-relative paths, or paths
 into a `references/` subdirectory that mirrors external material as
 first-class OKF concepts.
 
----
+______________________________________________________________________
 
 ## 9. Conformance
 
@@ -344,8 +344,8 @@ A bundle is **conformant** with OKF v0.1 if:
 
 1. Every non-reserved `.md` file in the tree contains a parseable YAML
    frontmatter block.
-2. Every frontmatter block contains a non-empty `type` field.
-3. Every reserved filename (`index.md`, `log.md`) follows the structure
+1. Every frontmatter block contains a non-empty `type` field.
+1. Every reserved filename (`index.md`, `log.md`) follows the structure
    described in §6 and §7 respectively when present.
 
 Consumers SHOULD treat all other constraints as soft guidance. In
@@ -361,7 +361,7 @@ This permissive consumption model is intentional: OKF is meant to
 remain useful as bundles grow, get refactored, and are partially
 generated by agents.
 
----
+______________________________________________________________________
 
 ## 10. Relationship to other formats
 
@@ -377,7 +377,7 @@ OKF is intentionally close to several established patterns:
 OKF differs primarily in being **specified** — pinning down the small
 set of rules needed for interoperability without dictating tooling.
 
----
+______________________________________________________________________
 
 ## 11. Versioning
 
@@ -395,7 +395,7 @@ only place frontmatter is permitted in an `index.md`). Consumers that
 do not understand the declared version SHOULD attempt best-effort
 consumption rather than refusing the bundle.
 
----
+______________________________________________________________________
 
 ## Appendix A — Minimal example bundle
 
