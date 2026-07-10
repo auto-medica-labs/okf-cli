@@ -1,3 +1,9 @@
+---
+name: writing-knowledge-base
+description: Help a domain expert turn their knowledge into a plain Markdown knowledge base that can be bundled into OKF with `okf bundle`. Use reference/knowledge-base.md for content guidance and reference/example/ for structure and writing style.
+license: MIT
+---
+
 # Knowledge Base Construction
 
 Help a domain expert turn their knowledge into a plain Markdown knowledge base that can be bundled into OKF with `okf bundle`. Use `reference/knowledge-base.md` for content guidance and `reference/example/` for structure and writing style.
