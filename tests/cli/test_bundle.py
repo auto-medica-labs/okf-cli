@@ -436,3 +436,24 @@ def test_bundle_strict_links_passes_with_valid_local_links(tmp_path: Path):
 
     result = runner.invoke(app, ["bundle", str(src), str(dst), "--strict-links"])
     assert result.exit_code == 0, result.output
+
+
+def test_bundle_creates_agents_md(tmp_path: Path):
+    src = tmp_path / "notes"
+    dst = tmp_path / "my-kb"
+    src.mkdir()
+    _write_fixture(
+        src,
+        {
+            "tables/orders.md": "# Orders\n\n> One row.\n\nBody.",
+        },
+    )
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 0, result.output
+
+    agents_md = dst / "AGENTS.md"
+    assert agents_md.exists()
+    content = agents_md.read_text()
+    assert "my-kb" in content
+    assert "index.md" in content

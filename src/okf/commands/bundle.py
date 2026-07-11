@@ -291,3 +291,17 @@ def bundle(
     # Summary
     n = len(processed)
     typer.echo(f"Done. Converted {n} file{'s' if n != 1 else ''} → {dst}")
+
+    # Generate AGENTS.md at bundle root
+    (dst / "AGENTS.md").write_text(
+        f"# Knowledge Base: {dst.name}\n\n"
+        f"You are in an OKF knowledge base called **{dst.name}**.\n\n"
+        "## Getting Started\n\n"
+        "Read [index.md](index.md) first — it lists all concepts and subdirectories.\n\n"
+        "## Navigation\n\n"
+        "- Follow markdown links between concepts.\n"
+        "- Each `.md` file has YAML frontmatter with `type`, `title`, `description`.\n"
+        "- Subdirectories group related concepts by topic.\n"
+        "- Cross-links (e.g. `[Customers](/tables/customers.md)`) express relationships.\n",
+        encoding="utf-8",
+    )
