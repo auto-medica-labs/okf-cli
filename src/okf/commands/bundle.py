@@ -9,6 +9,26 @@ import typer
 from okf.core import RESERVED, build_frontmatter, parse_md
 
 
+def _load_okfignore(src: Path) -> set[str]:
+    """Load .okfignore entries as bundle-relative POSIX paths."""
+    ignore_file = src / ".okfignore"
+    if not ignore_file.is_file():
+        return set()
+
+    try:
+        lines = ignore_file.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        raise ValueError(".okfignore is not valid UTF-8") from None
+
+    entries: set[str] = set()
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        entries.add(line.lstrip("./"))
+    return entries
+
+
 def bundle(
     input_dir: str = typer.Argument(
         ..., help="Source directory of plain markdown files"
@@ -47,13 +67,29 @@ def bundle(
         shutil.rmtree(dst)
         typer.echo(f"Removed existing '{output_dir}'", err=True)
 
-    # Collect all .md files (skip reserved names, warn for reserved)
+    try:
+        ignored = _load_okfignore(src)
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    # Collect all .md files (skip .okfignore entries and reserved names)
     md_files = []
     for f in sorted(src.rglob("*.md")):
+        rel = f.relative_to(src)
+        rel_posix = rel.as_posix()
+
+        if rel_posix in ignored:
+            typer.echo(
+                f"Warning: Skipping {rel} — matched .okfignore",
+                err=True,
+            )
+            continue
+
         lower = f.name.lower()
         if lower in RESERVED:
             typer.echo(
-                f"Warning: Skipping {f.relative_to(src)} — "
+                f"Warning: Skipping {rel} — "
                 f"reserved filename '{f.name}' (not a concept)",
                 err=True,
             )

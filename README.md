@@ -38,6 +38,19 @@ okf bundle example --default-type reference --force  # re-run
 cat bundled/tables/orders.md
 ```
 
+`.okfignore` (bundle only):
+
+- Put `.okfignore` in `input-dir`.
+- Add bundle-relative markdown paths to skip, one per line.
+- Blank lines and `#` comments ignored.
+- Matching is exact path match (no glob, no negation).
+
+```text
+# example/.okfignore
+smoke-ignore.md
+tables/orders.md
+```
+
 ### `okf list` — list concept IDs in a bundle
 
 ```
@@ -137,6 +150,7 @@ Files that don't follow the strict format are still bundled best-effort:
 | Folder name = concept type                            | `tables/orders.md` → `type: "tables"`                                                                                                                                                                                       |
 | Only `.md` files processed                            | Non-`.md` files ignored                                                                                                                                                                                                     |
 | `index.md`, `log.md`, `README.md` skipped in `bundle` | Input may contain repo artifacts; these are not concepts. `bundle` warns when it skips them. Other commands (`list`, `show`, `validate`) operate on conformant OKF bundles where only `index.md` and `log.md` are reserved. |
+| `.okfignore` entries skipped in `bundle`             | Add bundle-relative markdown paths (e.g. `tables/orders.md`) to skip conversion for selected files. Blank lines and `#` comments are ignored.                               |
 
 Root files need `--default-type`. Otherwise put files in named folders.
 
@@ -144,7 +158,7 @@ See the [`example/`](example/) directory for a sample of how to structure files.
 
 ## How `bundle` works
 
-1. Walk `input-dir` for `.md` files (skip reserved names)
+1. Walk `input-dir` for `.md` files (skip `.okfignore` matches and reserved names)
 1. Extract `title` from `#` on line 1, `description` from `>` block. If strict format not met, falls back: title omitted if absent, description from first 80 chars of body
 1. Set `type` from parent dir name, `timestamp` from file mtime
 1. Write concept files with YAML frontmatter (title field omitted if empty)

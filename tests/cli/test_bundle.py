@@ -242,6 +242,75 @@ def test_bundle_readme_is_reserved(tmp_path: Path):
     assert (dst / "tables" / "orders.md").exists()
 
 
+def test_bundle_okfignore_skips_matching_files(tmp_path: Path):
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    _write_fixture(
+        src,
+        {
+            "tables/orders.md": "# Orders\n\n> One row per order.\n\nBody.",
+            "tables/customers.md": "# Customers\n\n> All customers.\n\nBody.",
+            ".okfignore": "# ignore one file\n\ntables/orders.md\n",
+        },
+    )
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 0, result.output
+    assert "matched .okfignore" in result.output
+    assert not (dst / "tables" / "orders.md").exists()
+    assert (dst / "tables" / "customers.md").exists()
+
+
+def test_bundle_okfignore_skips_root_file_before_default_type_check(tmp_path: Path):
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    _write_fixture(
+        src,
+        {
+            "standalone.md": "# Standalone\n\n> Root file.\n\nBody.",
+            "tables/data.md": "# Data\n\n> A table.\n\nBody.",
+            ".okfignore": "standalone.md\n",
+        },
+    )
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 0, result.output
+    assert "root-level file needs --default-type" not in result.output
+    assert not (dst / "standalone.md").exists()
+    assert (dst / "tables" / "data.md").exists()
+
+
+def test_bundle_okfignore_non_utf8_fails(tmp_path: Path):
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    _write_fixture(src, {"tables/data.md": "# Data\n\n> A table.\n\nBody."})
+    (src / ".okfignore").write_bytes(b"\xff\xfe")
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 1
+    assert ".okfignore is not valid UTF-8" in result.output
+
+
+def test_bundle_okfignore_all_markdown_ignored(tmp_path: Path):
+    src = tmp_path / "notes"
+    dst = tmp_path / "bundle"
+    src.mkdir()
+    _write_fixture(
+        src,
+        {
+            "tables/orders.md": "# Orders\n\n> One row.\n\nBody.",
+            ".okfignore": "tables/orders.md\n",
+        },
+    )
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst)])
+    assert result.exit_code == 1
+    assert "No markdown files found" in result.output
+
+
 def test_frontmatter_yaml_parseable(tmp_path: Path):
     """Verify generated frontmatter is parseable JSON/YAML for tricky values."""
     import json

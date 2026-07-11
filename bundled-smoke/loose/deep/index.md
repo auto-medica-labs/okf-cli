@@ -1,0 +1,3 @@
+# Contents
+
+* [no-heading](no-heading.md) - I am a file deep in a subdirectory with no heading at all. Type comes from the d...

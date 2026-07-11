@@ -1,0 +1,3 @@
+# smoke test ignore entries
+smoke-ignore.md
+tables/orders.md

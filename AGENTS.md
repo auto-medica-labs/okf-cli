@@ -9,6 +9,7 @@ This file is for AI agents (and humans) picking up work on `okf-cli`.
 inspect/validate them.
 
 - **Input:** plain `.md` files starting with `# Title` and a `>` description block.
+  `bundle` also supports optional `.okfignore` in input root.
 - **Output:** OKF-conformant markdown with YAML frontmatter, per-directory `index.md` files.
 - **Operations:** `bundle`, `list`, `show`, `validate`.
 
@@ -77,7 +78,7 @@ okf-cli
 
 | Command    | Input expected                    | Behavior                                                                                                                                                       |
 | ---------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bundle`   | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; root files need `--default-type`; requires `--force` to overwrite existing output |
+| `bundle`   | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; skips `.okfignore`-matched files; root files need `--default-type`; requires `--force` to overwrite existing output |
 | `list`     | OKF-conformant bundle             | prints concept IDs; exits 1 if dir is not conformant                                                                                                           |
 | `show`     | OKF-conformant bundle             | prints concept file by ID; exits 1 if dir is not conformant                                                                                                    |
 | `validate` | any directory                     | prints conformance errors and summary per §9                                                                                                                   |
@@ -91,6 +92,15 @@ okf-cli
 - `list`, `show`, `validate` operate on already-conformant OKF bundles, so
   they only treat `index.md` and `log.md` as reserved per the spec.
 - `README.md` can be a valid concept in an OKF bundle.
+
+### `.okfignore` (bundle only)
+
+- Location: input directory root (`<input-dir>/.okfignore`).
+- Format: one bundle-relative markdown path per line.
+  - Example: `tables/orders.md`, `smoke-ignore.md`
+- Blank lines and lines starting with `#` are ignored.
+- Matching is exact path match only (no glob, no negation).
+- If `.okfignore` is non-UTF-8, `bundle` exits with error.
 
 ### OKF conformance (§9)
 
@@ -142,6 +152,7 @@ uv run okf list bundled
 ```
 
 `bundled/` is gitignored; it is only a local artifact. Use `--force` for re-runs.
+If `example/.okfignore` exists, `bundle` will skip matched files.
 
 ### Add a new CLI command
 
