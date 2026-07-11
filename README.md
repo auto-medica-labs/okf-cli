@@ -22,19 +22,21 @@ uv run okf --help
 ### `okf bundle` — convert plain markdown to OKF bundle
 
 ```
-okf bundle <input-dir> [output-dir] [--default-type <name>] [--force]
+okf bundle <input-dir> [output-dir] [--default-type <name>] [--force] [--strict-links]
 ```
 
-| Argument         | Description                                            |
-| ---------------- | ------------------------------------------------------ |
-| `input-dir`      | Directory of plain `.md` files                         |
-| `output-dir`     | Target directory (default: `bundled`)                  |
-| `--default-type` | Type for root-level files (skip root files if omitted) |
-| `--force`, `-f`  | Overwrite output directory if it exists                |
+| Argument         | Description                                                                  |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `input-dir`      | Directory of plain `.md` files                                               |
+| `output-dir`     | Target directory (default: `bundled`)                                        |
+| `--default-type` | Type for root-level files (skip root files if omitted)                       |
+| `--force`, `-f`  | Overwrite output directory if it exists                                      |
+| `--strict-links` | Fail if local markdown links point outside bundle or to missing `.md` target |
 
 ```bash
 okf bundle example --default-type reference  # first run → bundled/
 okf bundle example --default-type reference --force  # re-run
+okf bundle example --default-type reference --force --strict-links  # fail on broken local .md links
 cat bundled/tables/orders.md
 ```
 
@@ -50,6 +52,14 @@ cat bundled/tables/orders.md
 smoke-ignore.md
 tables/orders.md
 ```
+
+Local link checks during `bundle`:
+
+- Scans markdown body links to local `.md` targets.
+- Supports relative links (`./x.md`, `../x.md`) and bundle-root links (`/tables/x.md`).
+- Ignores external links (`https:`, `mailto:`), fragment-only links (`#section`), directory links, and non-`.md` targets.
+- Default mode prints warnings for missing targets or links resolving outside bundle.
+- `--strict-links` turns those warnings into a non-zero exit (`Error: strict link check failed`).
 
 ### `okf list` — list concept IDs in a bundle
 
@@ -160,6 +170,7 @@ See the [`example/`](example/) directory for a sample of how to structure files.
 
 1. Walk `input-dir` for `.md` files (skip `.okfignore` matches and reserved names)
 1. Extract `title` from `#` on line 1, `description` from `>` block. If strict format not met, falls back: title omitted if absent, description from first 80 chars of body
+1. Check local markdown links against planned bundle targets (warn by default, or fail with `--strict-links`)
 1. Set `type` from parent dir name, `timestamp` from file mtime
 1. Write concept files with YAML frontmatter (title field omitted if empty)
 1. Generate `index.md` per directory — `# Contents` for files, `# Directories` for subdirs (recursive)

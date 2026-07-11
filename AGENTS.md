@@ -2,6 +2,16 @@
 
 This file is for AI agents (and humans) picking up work on `okf-cli`.
 
+## OpenWiki (read first)
+
+This repository has docs in `openwiki/`.
+
+Start here:
+
+- [OpenWiki quickstart](openwiki/quickstart.md)
+
+Then follow links to architecture, workflows, domain model, operations, and testing notes relevant to task.
+
 ## Project overview
 
 `okf-cli` is a Python CLI that converts plain markdown directories into
@@ -76,12 +86,12 @@ okf-cli
 
 ### Commands
 
-| Command    | Input expected                    | Behavior                                                                                                                                                                                         |
-| ---------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bundle`   | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; skips `.okfignore`-matched files; root files need `--default-type`; requires `--force` to overwrite existing output |
-| `list`     | OKF-conformant bundle             | prints concept IDs; exits 1 if dir is not conformant                                                                                                                                             |
-| `show`     | OKF-conformant bundle             | prints concept file by ID; exits 1 if dir is not conformant                                                                                                                                      |
-| `validate` | any directory                     | prints conformance errors and summary per §9                                                                                                                                                     |
+| Command    | Input expected                    | Behavior                                                                                                                                                                                                                                                                 |
+| ---------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bundle`   | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; skips `.okfignore`-matched files; checks local `.md` links (warn by default, fail with `--strict-links`); root files need `--default-type`; requires `--force` to overwrite existing output |
+| `list`     | OKF-conformant bundle             | prints concept IDs; exits 1 if dir is not conformant                                                                                                                                                                                                                     |
+| `show`     | OKF-conformant bundle             | prints concept file by ID; exits 1 if dir is not conformant                                                                                                                                                                                                              |
+| `validate` | any directory                     | prints conformance errors and summary per §9                                                                                                                                                                                                                             |
 
 ## Key conventions
 
@@ -92,6 +102,14 @@ okf-cli
 - `list`, `show`, `validate` operate on already-conformant OKF bundles, so
   they only treat `index.md` and `log.md` as reserved per the spec.
 - `README.md` can be a valid concept in an OKF bundle.
+
+### Link checks in `bundle`
+
+- `bundle` scans markdown body links for local `.md` targets.
+- Supports relative (`./x.md`, `../x.md`) and bundle-root (`/dir/x.md`) links.
+- Ignores external links (scheme URLs like `https:`/`mailto:`), fragment-only links, directory links, and non-`.md` targets.
+- Default behavior: emit warnings for missing local targets or targets outside bundle.
+- `--strict-links`: treat those link issues as fatal and exit non-zero.
 
 ### `.okfignore` (bundle only)
 
@@ -147,6 +165,7 @@ Add tests for new behavior in `tests/test_cli.py`. Existing patterns:
 
 ```bash
 uv run okf bundle example bundled --default-type reference --force
+uv run okf bundle example bundled --default-type reference --force --strict-links
 uv run okf validate bundled
 uv run okf list bundled
 ```

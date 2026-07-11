@@ -14,3 +14,4 @@
 ## Notes
 
 Part of the [Sales Dataset](../datasets/sales.md). Joined with [customers](customers.md) on `customer_id`.
+Also see [Missing Concept](missing.md) and [Outside](../../secret.md).
