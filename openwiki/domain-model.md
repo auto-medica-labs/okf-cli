@@ -83,6 +83,16 @@ Source: `src/okf/commands/bundle.py`.
 
 Source: `_load_okfignore` in `src/okf/commands/bundle.py`; example file: `example/.okfignore`.
 
+## Bundle output artifacts
+
+Each bundle run produces:
+
+- concept `.md` files with YAML frontmatter
+- `index.md` per directory listing contents and subdirs
+- `AGENTS.md` at output root: navigation guide for AI agents and humans (references `index.md`, explains frontmatter and cross-links)
+
+Source: `src/okf/commands/bundle.py`.
+
 ## Conformance rules enforced
 
 `check_conformance` enforces bundle constraints:

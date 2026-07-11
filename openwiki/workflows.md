@@ -29,6 +29,7 @@ Important behavior:
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
 - `.okfignore` in input root can skip exact bundle-relative paths.
 - `--strict-links` fails if any local `.md` link is missing or points outside bundle.
+- `AGENTS.md` is generated at output root with navigation guidance.
 
 Source: `src/okf/commands/bundle.py`.
 

@@ -24,6 +24,7 @@ Why this split exists: business rules live once in `core.py`, while command file
 1. Scan markdown body links via `_iter_links` / `_resolve_md_target` — warns on missing or out-of-bundle targets; `--strict-links` makes these fatal.
 1. Build YAML frontmatter via `build_frontmatter`.
 1. Write transformed files and generate `index.md` per directory.
+1. Write `AGENTS.md` at output root with navigation guidance for the knowledge base.
 
 Source: `src/okf/commands/bundle.py`, `src/okf/core.py`.
 
