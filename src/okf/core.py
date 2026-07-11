@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 
 RESERVED = frozenset({"index.md", "log.md", "readme.md"})
-SPEC_RESERVED = frozenset({"index.md", "log.md"})
+SPEC_RESERVED = frozenset({"index.md", "log.md", "agents.md"})
 
 
 def yaml_val(v: str) -> str:
@@ -159,6 +159,9 @@ def check_conformance(dir_path: Path) -> tuple[list[str], list[str]]:
             continue
 
         if name_lower in SPEC_RESERVED:
+            if name_lower == "agents.md":
+                continue
+
             fm = parse_frontmatter(text)
 
             if name_lower == "index.md" and fm is not None:
