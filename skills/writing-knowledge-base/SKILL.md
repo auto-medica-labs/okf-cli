@@ -1,127 +1,61 @@
 ---
 name: writing-knowledge-base
-description: Help a domain expert turn their knowledge into a plain Markdown knowledge base that can be bundled into OKF with `okf bundle`. Use reference/knowledge-base.md for content guidance and reference/example/ for structure and writing style.
+description: Turn user provided content on any topic into a plain Markdown knowledge base. Invoked as /writing-knowledge-base with content to convert.
 license: MIT
 ---
 
 # Knowledge Base Construction
 
-Help a domain expert turn their knowledge into a plain Markdown knowledge base that can be bundled into OKF with `okf bundle`. Use `reference/knowledge-base.md` for content guidance and `reference/example/` for structure and writing style.
-
-## Role
-
-Act as facilitator and editor, not an authority on the domain.
-
-- Ask focused questions when facts, scope, ownership, terminology, or relationships are unclear.
-- Never invent domain facts, metrics, schemas, URLs, SLAs, or procedures.
-- Preserve the expert's terminology and meaning; improve structure and clarity only.
-- Prefer several small, linked concepts over one large document.
+Convert the user's content directly into a structured Markdown knowledge base. Don't ask clarifying questions unless the content is genuinely unusable (e.g. empty or unintelligible) — infer structure, terminology, and grouping from what's given, and note any gaps inline rather than blocking on them.
 
 ## Workflow
 
-1. Learn the domain, audience, and intended use of the knowledge base.
+1. Read the content and split it into coherent concepts (one idea per file — prefer several small linked files over one large one).
+1. Create new directory with a name relative to the content user provide (e.g. `italian-food`, `turbocharge`, `formula-one`, etc. ).
+1. Group concepts into type directories that fit the material's own structure. Let the content dictate the categories — e.g. `recipes/`, `policies/`, `species/`, `procedures/`, `terms/`, `people/`, `events/` — whatever natural groupings emerge. Don't force a data/tech taxonomy onto non-technical content.
+1. Write each file using the format below, preserving the user's own terminology and facts. Never invent details, numbers, names, or steps that weren't given.
+1. Add relative Markdown links between related concepts.
+1. Save all files under an input directory your just created.
 
-1. Identify concepts and group them into directories such as `datasets/`, `tables/`, `playbooks/`, or other domain-appropriate types.
+## Example file tree
 
-1. Propose a file tree before writing many files. Get expert agreement on names and grouping.
+```
+cooking/
+  recipes/
+    italian/
+      lasagna.md
+      carbonara.md
+    japanese/
+      ramen.md
+      sushi.md
+  techniques/
+    knife-skills.md
+    emulsion.md
+  ingredients/
+    eggs.md
+    flour-types.md
+  faq.md
+  common-mistake.md
+```
 
-1. Draft or update one concept at a time. Show the draft and ask for corrections.
-
-1. Add links between related concepts using relative Markdown links.
-
-1. Review for missing context, contradictions, stale-looking operational details, and unsupported assumptions.
-
-1. Keep source files under a chosen input directory, following `reference/example/`.
-
-1. When ready, explain how to bundle and validate:
-
-   ```bash
-   okf bundle <input-dir> <output-dir> --default-type reference
-   okf validate <output-dir>
-   ```
-
-   Use `--default-type` only when root-level files exist. Prefer placing concepts in named directories.
-
-## References
-
-Read these files before drafting when more detail is needed:
-
-- `reference/knowledge-base.md` — what a good knowledge base and concept file look like.
-- `reference/example/` — complete example input structure copied from this project.
+- Root files (e.g. `faq.md`) are allowed
+- File can be nested as deep as necessary and semantically sound.
 
 ## File format
-
-Every concept should normally use this format:
 
 ```markdown
 # Clear Concept Title
 
-> One-sentence summary of this concept.
+> One-sentence factual summary.
 
-Body content with useful context, structure, examples, procedures, or schema.
+Body: context, details, steps, examples, caveats — whatever fits the concept.
 ```
 
-Rules:
+- First line `# Title`, then a `>` description, then body detail.
+- Use headings, lists, tables, or code blocks as they help retrieval — not all concepts need all of these.
+- One concept per file. Directory name per type (e.g. `recipes/lasagna.md` → type `recipes`).
+- Lowercase, stable filenames, no spaces.
+- No `index.md`, `log.md`, `README.md` as concepts — bundler reserves these.
+- No YAML frontmatter in source files
 
-- First line: `# Title`.
-- Follow with a `>` description block. Keep it concise and factual.
-- Put detailed knowledge in the body after the description.
-- Use headings, lists, tables, and code blocks where they help retrieval.
-- Use one file per concept.
-- Directory name becomes OKF `type`: `tables/orders.md` becomes type `tables`.
-- Use lowercase, stable, descriptive filenames. Avoid spaces when possible.
-- Do not create `index.md`, `log.md`, or `README.md` as concepts in source input; bundling reserves them.
-- Do not add frontmatter to source files. `okf bundle` generates it.
-
-## Concept guidance
-
-For data assets, capture:
-
-- What asset contains and why it exists.
-- Grain or unit of each record.
-- Ownership and consumers, if known.
-- Schema with field name, type, and meaning.
-- Keys, joins, partitions, freshness, quality limits, and known caveats.
-
-For processes and playbooks, capture:
-
-- Trigger and scope.
-- Ordered steps.
-- Decision points and expected outcomes.
-- Owners, escalation paths, tools, and safety constraints.
-- Links to related assets and procedures.
-
-For domain concepts, capture:
-
-- Definition and boundaries.
-- Synonyms and terms that should not be confused.
-- Examples and counterexamples.
-- Related concepts and source evidence.
-
-## Questions to ask
-
-Ask only questions that unblock useful writing. Examples:
-
-- Who uses this knowledge and what decision should it support?
-- What is the smallest useful concept here?
-- What does each term mean in this domain?
-- What is the source of truth?
-- What is the record grain, owner, freshness, or SLA?
-- What concepts does this depend on or relate to?
-- What should a reader do when this process fails?
-- Which details are confirmed, approximate, deprecated, or unknown?
-
-## Quality check
-
-Before declaring the knowledge base ready, check:
-
-- Every concept has a title and one-sentence description.
-- Each file contains one coherent concept.
-- Directory grouping reflects meaningful concept types.
-- Links point to the correct relative files.
-- No facts were added without expert confirmation.
-- Procedures include ownership and failure handling where relevant.
-- Tables include field meaning, not only field names and types.
-- Unknown or disputed details are visible.
-- Source remains readable as plain Markdown.
-- Generated output passes `okf validate <output-dir>`.
+Do not fabricate any information on your own, use only what user provided to you.
