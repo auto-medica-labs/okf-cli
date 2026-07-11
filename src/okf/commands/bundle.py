@@ -44,7 +44,9 @@ def _resolve_md_target(current_rel: Path, raw_target: str) -> str | None:
     if target.startswith("/"):
         resolved = posixpath.normpath(target.lstrip("/"))
     else:
-        resolved = posixpath.normpath(posixpath.join(current_rel.parent.as_posix(), target))
+        resolved = posixpath.normpath(
+            posixpath.join(current_rel.parent.as_posix(), target)
+        )
 
     if resolved in {"", "."}:
         return None
