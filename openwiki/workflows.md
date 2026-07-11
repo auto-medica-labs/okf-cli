@@ -23,6 +23,7 @@ uv run okf bundle <input-dir> <output-dir> --default-type reference --force
 ```
 
 Important behavior:
+
 - Root-level markdown requires `--default-type`, else skipped with warning.
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
 - `.okfignore` in input root can skip exact bundle-relative paths.
@@ -53,6 +54,7 @@ uv run okf show <output-dir> <concept-id>
 ### Change parsing/frontmatter/conformance rules
 
 Start files:
+
 - `src/okf/core.py`
 - `tests/test_core.py`
 - `tests/cli/test_validate.py`
@@ -64,10 +66,12 @@ Why: `check_conformance` and parsing helpers are shared dependencies across comm
 ### Change bundling behavior
 
 Start files:
+
 - `src/okf/commands/bundle.py`
 - `tests/cli/test_bundle.py`
 
 Common pitfalls:
+
 - keep root `index.md` generation behavior stable;
 - keep reserved-name semantics (`README.md` reserved only for bundling phase);
 - keep `.okfignore` exact-match behavior (no globs).
@@ -75,13 +79,14 @@ Common pitfalls:
 ### Add new CLI command
 
 1. Add command implementation under `src/okf/commands/`.
-2. Register in `src/okf/cli.py`.
-3. Add CLI integration tests.
-4. Update `README.md` and OpenWiki quickstart if UX changes.
+1. Register in `src/okf/cli.py`.
+1. Add CLI integration tests.
+1. Update `README.md` and OpenWiki quickstart if UX changes.
 
 ## Smoke workflow with repo fixtures
 
 Repo contains:
+
 - source sample: `example/`
 - generated sample: `bundled-smoke/`
 

@@ -19,18 +19,18 @@ Why this split exists: business rules live once in `core.py`, while command file
 ### `okf bundle`
 
 1. Read source directory + optional `.okfignore` (`_load_okfignore`).
-2. Walk `*.md`, skipping reserved names and ignored paths.
-3. Parse each markdown file via `parse_md` (strict first, lenient fallback).
-4. Build YAML frontmatter via `build_frontmatter`.
-5. Write transformed files and generate `index.md` per directory.
+1. Walk `*.md`, skipping reserved names and ignored paths.
+1. Parse each markdown file via `parse_md` (strict first, lenient fallback).
+1. Build YAML frontmatter via `build_frontmatter`.
+1. Write transformed files and generate `index.md` per directory.
 
 Source: `src/okf/commands/bundle.py`, `src/okf/core.py`.
 
 ### `okf validate`
 
 1. Ensure target directory exists and has markdown files.
-2. Call `check_conformance` once.
-3. Print warnings/errors + summary, exit non-zero on errors.
+1. Call `check_conformance` once.
+1. Print warnings/errors + summary, exit non-zero on errors.
 
 Source: `src/okf/commands/validate.py`, `src/okf/core.py`.
 
@@ -55,6 +55,7 @@ Source: `src/okf/core.py`.
 ## Evolution notes (from git history)
 
 Major behavior shifts:
+
 - project started bundling-focused, then added `validate`/`list`/`show` workflow;
 - frontmatter parsing/conformance matured to real YAML parsing and shared conformance gating;
 - markdown parsing in bundling became lenient to tolerate imperfect source docs;

@@ -18,9 +18,10 @@ uv run okf show bundled tables/customers
 ```
 
 Why this sequence:
+
 1. `bundle` transforms raw markdown into OKF structure.
-2. `validate` checks OKF conformance gate used by readers.
-3. `list`/`show` operate only on conformant bundles.
+1. `validate` checks OKF conformance gate used by readers.
+1. `list`/`show` operate only on conformant bundles.
 
 ## OpenWiki map
 

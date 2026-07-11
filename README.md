@@ -150,7 +150,7 @@ Files that don't follow the strict format are still bundled best-effort:
 | Folder name = concept type                            | `tables/orders.md` → `type: "tables"`                                                                                                                                                                                       |
 | Only `.md` files processed                            | Non-`.md` files ignored                                                                                                                                                                                                     |
 | `index.md`, `log.md`, `README.md` skipped in `bundle` | Input may contain repo artifacts; these are not concepts. `bundle` warns when it skips them. Other commands (`list`, `show`, `validate`) operate on conformant OKF bundles where only `index.md` and `log.md` are reserved. |
-| `.okfignore` entries skipped in `bundle`             | Add bundle-relative markdown paths (e.g. `tables/orders.md`) to skip conversion for selected files. Blank lines and `#` comments are ignored.                               |
+| `.okfignore` entries skipped in `bundle`              | Add bundle-relative markdown paths (e.g. `tables/orders.md`) to skip conversion for selected files. Blank lines and `#` comments are ignored.                                                                               |
 
 Root files need `--default-type`. Otherwise put files in named folders.
 

@@ -12,6 +12,7 @@ uv run okf --help
 Packaging and runtime metadata: `pyproject.toml`.
 
 Key points:
+
 - CLI script entrypoint: `okf = "okf.cli:app"`
 - Runtime deps: `typer`, `pyyaml`
 - Dev deps include `pytest`, `ruff`
@@ -36,10 +37,11 @@ uv run okf validate bundled
 GitHub Actions workflow: `.github/workflows/test.yml`
 
 Pipeline:
+
 1. checkout
-2. setup `uv` with Python 3.11
-3. `uv sync`
-4. `uv run pytest -q`
+1. setup `uv` with Python 3.11
+1. `uv sync`
+1. `uv run pytest -q`
 
 No deploy pipeline in repo; CI currently focused on correctness tests.
 

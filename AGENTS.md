@@ -76,12 +76,12 @@ okf-cli
 
 ### Commands
 
-| Command    | Input expected                    | Behavior                                                                                                                                                       |
-| ---------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Command    | Input expected                    | Behavior                                                                                                                                                                                         |
+| ---------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `bundle`   | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; skips `.okfignore`-matched files; root files need `--default-type`; requires `--force` to overwrite existing output |
-| `list`     | OKF-conformant bundle             | prints concept IDs; exits 1 if dir is not conformant                                                                                                           |
-| `show`     | OKF-conformant bundle             | prints concept file by ID; exits 1 if dir is not conformant                                                                                                    |
-| `validate` | any directory                     | prints conformance errors and summary per §9                                                                                                                   |
+| `list`     | OKF-conformant bundle             | prints concept IDs; exits 1 if dir is not conformant                                                                                                                                             |
+| `show`     | OKF-conformant bundle             | prints concept file by ID; exits 1 if dir is not conformant                                                                                                                                      |
+| `validate` | any directory                     | prints conformance errors and summary per §9                                                                                                                                                     |
 
 ## Key conventions
 
@@ -178,6 +178,7 @@ Update `check_conformance()` in `src/okf/core.py`, then ensure
 This repository has documentation located in the /openwiki directory.
 
 Start here:
+
 - [OpenWiki quickstart](openwiki/quickstart.md)
 
 OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
