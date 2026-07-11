@@ -1,0 +1,58 @@
+# Operations
+
+## Local setup
+
+Project targets Python 3.11+ with `uv` workflow.
+
+```bash
+uv sync
+uv run okf --help
+```
+
+Packaging and runtime metadata: `pyproject.toml`.
+
+Key points:
+- CLI script entrypoint: `okf = "okf.cli:app"`
+- Runtime deps: `typer`, `pyyaml`
+- Dev deps include `pytest`, `ruff`
+
+## Day-to-day commands
+
+```bash
+uv run pytest -q
+uvx ruff check .
+uvx ruff format .
+```
+
+For bundle smoke:
+
+```bash
+uv run okf bundle example bundled --default-type reference --force
+uv run okf validate bundled
+```
+
+## CI/CD
+
+GitHub Actions workflow: `.github/workflows/test.yml`
+
+Pipeline:
+1. checkout
+2. setup `uv` with Python 3.11
+3. `uv sync`
+4. `uv run pytest -q`
+
+No deploy pipeline in repo; CI currently focused on correctness tests.
+
+## Repo artifacts and hygiene
+
+- `example/` contains sample source markdown.
+- `bundled-smoke/` contains generated sample output used for smoke/reference.
+- `bundled/` is git-ignored local artifact (`.gitignore`).
+
+When changing command behavior, update sample docs/output only if behavior change is intentional and tested.
+
+## Release-facing notes
+
+Recent history shows production hardening and feature additions were shipped via small incremental commits (validate/list/show, YAML conformance gate, lenient parsing, `.okfignore`).
+
+Operational takeaway: keep releases narrow and test-backed; avoid large unverified refactors.
