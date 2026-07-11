@@ -56,5 +56,6 @@ uv run pytest -q tests/cli
 - Root `index.md` special allowance for `okf_version` only.
 - `list`/`show` hard failure on non-conformant bundles.
 - `show` path traversal guard.
+- Link checking: `_resolve_md_target` path resolution, `--strict-links` fatal mode, missing/out-of-bundle targets.
 
 Primary evidence: `tests/cli/*.py`, `tests/test_core.py`.

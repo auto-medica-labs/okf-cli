@@ -60,6 +60,19 @@ Why it exists: tolerate real-world docs that are not perfectly formatted while s
 
 Source: `src/okf/core.py`.
 
+## Link checking (bundle-only)
+
+`bundle` scans markdown body links for local `.md` targets before writing output.
+
+- `_iter_links(text)` extracts `[text](target)` via regex.
+- `_resolve_md_target(current_rel, raw_target)` resolves to a bundle-relative POSIX path.
+- Ignored: external URLs (`https:`, `mailto:`), fragment-only links (`#section`), directory links, non-`.md` targets.
+- Default mode: warnings for missing targets or targets resolving outside bundle.
+- `--strict-links`: turns warnings into fatal exit.
+- Generated `index.md` files count as valid link targets.
+
+Source: `src/okf/commands/bundle.py`.
+
 ## `.okfignore` model (bundle-only)
 
 - file location: `<input-dir>/.okfignore`

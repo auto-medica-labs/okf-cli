@@ -21,6 +21,7 @@ Why this split exists: business rules live once in `core.py`, while command file
 1. Read source directory + optional `.okfignore` (`_load_okfignore`).
 1. Walk `*.md`, skipping reserved names and ignored paths.
 1. Parse each markdown file via `parse_md` (strict first, lenient fallback).
+1. Scan markdown body links via `_iter_links` / `_resolve_md_target` — warns on missing or out-of-bundle targets; `--strict-links` makes these fatal.
 1. Build YAML frontmatter via `build_frontmatter`.
 1. Write transformed files and generate `index.md` per directory.
 

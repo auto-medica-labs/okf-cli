@@ -20,6 +20,7 @@ Lenient fallback exists for imperfect files, but strict shape gives better metad
 
 ```bash
 uv run okf bundle <input-dir> <output-dir> --default-type reference --force
+uv run okf bundle <input-dir> <output-dir> --default-type reference --force --strict-links
 ```
 
 Important behavior:
@@ -27,6 +28,7 @@ Important behavior:
 - Root-level markdown requires `--default-type`, else skipped with warning.
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
 - `.okfignore` in input root can skip exact bundle-relative paths.
+- `--strict-links` fails if any local `.md` link is missing or points outside bundle.
 
 Source: `src/okf/commands/bundle.py`.
 

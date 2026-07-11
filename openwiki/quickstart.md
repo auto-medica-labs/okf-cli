@@ -15,6 +15,7 @@ uv run okf bundle example bundled --default-type reference --force
 uv run okf validate bundled
 uv run okf list bundled
 uv run okf show bundled tables/customers
+uv run okf bundle example bundled --default-type reference --force --strict-links
 ```
 
 Why this sequence:
@@ -22,6 +23,7 @@ Why this sequence:
 1. `bundle` transforms raw markdown into OKF structure.
 1. `validate` checks OKF conformance gate used by readers.
 1. `list`/`show` operate only on conformant bundles.
+1. `--strict-links` catches broken local `.md` references at bundle time.
 
 ## OpenWiki map
 
