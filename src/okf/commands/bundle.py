@@ -106,6 +106,13 @@ def bundle(
         typer.echo(f"Error: input directory '{input_dir}' not found", err=True)
         raise typer.Exit(code=1)
 
+    if src.resolve() == dst.resolve():
+        typer.echo(
+            "Error: input and output directories must be different",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
     if dst.exists():
         if not force:
             typer.echo(
@@ -297,11 +304,14 @@ def bundle(
         f"# Knowledge Base: {dst.name}\n\n"
         f"You are in an OKF knowledge base called **{dst.name}**.\n\n"
         "## Getting Started\n\n"
-        "Read [index.md](index.md) first — it lists all concepts and subdirectories.\n\n"
+        "Read [index.md](index.md) first — it lists all concepts "
+        "and subdirectories.\n\n"
         "## Navigation\n\n"
         "- Follow markdown links between concepts.\n"
-        "- Each `.md` file has YAML frontmatter with `type`, `title`, `description`.\n"
+        "- Each `.md` file has YAML frontmatter with `type`, `title`, "
+        "`description`.\n"
         "- Subdirectories group related concepts by topic.\n"
-        "- Cross-links (e.g. `[Customers](/tables/customers.md)`) express relationships.\n",
+        "- Cross-links (e.g. `[Customers](/tables/customers.md)`) "
+        "express relationships.\n",
         encoding="utf-8",
     )

@@ -178,6 +178,16 @@ def test_bundle_refuses_overwrite_without_force(tmp_path: Path):
     assert "--force" in result.output
 
 
+def test_bundle_refuses_same_input_and_output_dir(tmp_path: Path):
+    src = tmp_path / "notes"
+    src.mkdir()
+    _write_fixture(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+    result = runner.invoke(app, ["bundle", str(src), str(src), "--force"])
+    assert result.exit_code == 1, result.output
+    assert "must be different" in result.output
+
+
 def test_bundle_no_md_files(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
@@ -342,7 +352,9 @@ def test_bundle_warns_broken_local_markdown_link(tmp_path: Path):
     _write_fixture(
         src,
         {
-            "tables/orders.md": "# Orders\n\n> One row.\n\nSee [Customers](customers.md).",
+            "tables/orders.md": (
+                "# Orders\n\n> One row.\n\nSee [Customers](customers.md)."
+            ),
         },
     )
 
@@ -358,8 +370,12 @@ def test_bundle_accepts_valid_relative_and_absolute_local_links(tmp_path: Path):
     _write_fixture(
         src,
         {
-            "tables/orders.md": "# Orders\n\n> One row.\n\nSee [Customers](./customers.md).",
-            "tables/customers.md": "# Customers\n\n> All customers.\n\nSee [Orders](/tables/orders.md).",
+            "tables/orders.md": (
+                "# Orders\n\n> One row.\n\nSee [Customers](./customers.md)."
+            ),
+            "tables/customers.md": (
+                "# Customers\n\n> All customers.\n\nSee [Orders](/tables/orders.md)."
+            ),
         },
     )
 
@@ -397,7 +413,9 @@ def test_bundle_warns_markdown_link_outside_bundle(tmp_path: Path):
     _write_fixture(
         src,
         {
-            "tables/orders.md": "# Orders\n\n> One row.\n\nSee [Secret](../../secret.md).",
+            "tables/orders.md": (
+                "# Orders\n\n> One row.\n\nSee [Secret](../../secret.md)."
+            ),
         },
     )
 
@@ -413,7 +431,9 @@ def test_bundle_strict_links_fails_on_broken_local_link(tmp_path: Path):
     _write_fixture(
         src,
         {
-            "tables/orders.md": "# Orders\n\n> One row.\n\nSee [Customers](customers.md).",
+            "tables/orders.md": (
+                "# Orders\n\n> One row.\n\nSee [Customers](customers.md)."
+            ),
         },
     )
 
@@ -429,8 +449,12 @@ def test_bundle_strict_links_passes_with_valid_local_links(tmp_path: Path):
     _write_fixture(
         src,
         {
-            "tables/orders.md": "# Orders\n\n> One row.\n\nSee [Customers](./customers.md).",
-            "tables/customers.md": "# Customers\n\n> All customers.\n\nBody.",
+            "tables/orders.md": (
+                "# Orders\n\n> One row.\n\nSee [Customers](./customers.md)."
+            ),
+            "tables/customers.md": (
+                "# Customers\n\n> All customers.\n\nBody."
+            ),
         },
     )
 

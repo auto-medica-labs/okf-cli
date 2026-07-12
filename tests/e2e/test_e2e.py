@@ -248,7 +248,9 @@ def test_bundle_warns_broken_link(tmp_path: Path):
     _write(
         src,
         {
-            "tables/orders.md": "# Orders\n\n> One row.\n\nSee [Customers](customers.md).",
+            "tables/orders.md": (
+                "# Orders\n\n> One row.\n\nSee [Customers](customers.md)."
+            ),
         },
     )
 
@@ -264,7 +266,9 @@ def test_bundle_accepts_valid_links(tmp_path: Path):
     _write(
         src,
         {
-            "tables/orders.md": "# Orders\n\n> One row.\n\nSee [Customers](./customers.md).",
+            "tables/orders.md": (
+                "# Orders\n\n> One row.\n\nSee [Customers](./customers.md)."
+            ),
             "tables/customers.md": "# Customers\n\n> All.\n\nBody.",
         },
     )
@@ -740,7 +744,10 @@ def test_show_valid_concept(tmp_path: Path):
 
 
 def test_show_with_md_extension_appended(tmp_path: Path):
-    """show always appends .md — passing tables/orders.md looks for tables/orders.md.md."""
+    """show always appends .md.
+
+    Passing tables/orders.md looks for tables/orders.md.md.
+    """
     d = tmp_path / "bundle"
     d.mkdir()
     _write(d, {"tables/orders.md": "---\ntype: tables\n---\n\nBody."})
