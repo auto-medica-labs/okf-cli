@@ -78,8 +78,10 @@ def bundle(
     input_dir: str = typer.Argument(
         ..., help="Source directory of plain markdown files"
     ),
-    output_dir: str = typer.Argument(
-        "bundled", help="Output directory for the OKF bundle (default: bundled)"
+    output_dir: str | None = typer.Argument(
+        None,
+        help="Output directory for the OKF bundle "
+        "(default: <input-dir>_knowledge_base)",
     ),
     default_type: str = typer.Option(
         None, help="Type for root-level files (default: input directory name)"
@@ -97,9 +99,13 @@ def bundle(
 
     Each .md file must start with '# Title' followed by a '>' description block.
     Directory name determines the concept 'type'. Root-level files need --default-type.
-    If output-dir is omitted, defaults to 'bundled'.
+    If output-dir is omitted, defaults to '<input-dir>_knowledge_base'.
     """
     src = Path(input_dir)
+
+    if output_dir is None:
+        output_dir = f"{src.name}_knowledge_base"
+
     dst = Path(output_dir)
 
     if not src.is_dir():
@@ -292,7 +298,15 @@ def bundle(
     # Generate AGENTS.md at bundle root
     (dst / "AGENTS.md").write_text(
         f"# Knowledge Base: {dst.name}\n\n"
-        f"You are in an OKF knowledge base called **{dst.name}**.\n\n"
+        f"You are in an OKF (Open Knowledge Format) knowledge base called "
+        f"**{dst.name}**. OKF is a structured markdown format where each "
+        f"`.md` file is a concept with YAML frontmatter (`type`, `title`, "
+        f"`description`) and cross-links between related concepts.\n\n"
+        "## Instructions\n\n"
+        "- **Answer from this knowledge base only.** Use the concepts and "
+        "links here as your source of truth.\n"
+        "- **If the answer is not in the knowledge base, say so directly.** "
+        "Do not fabricate, guess, or pull from external knowledge.\n\n"
         "## Getting Started\n\n"
         "Read [index.md](index.md) first — it lists all concepts "
         "and subdirectories.\n\n"
