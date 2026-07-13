@@ -34,9 +34,9 @@ Implementation: `src/okf/commands/list.py`, `src/okf/commands/show.py`.
 Two rule sets:
 
 - Bundling input skip set: `index.md`, `log.md`, `README.md` (`RESERVED`)
-- Spec reserved set: `index.md`, `log.md` (`SPEC_RESERVED`)
+- Spec reserved set: `index.md`, `log.md`, `agents.md` (`SPEC_RESERVED`)
 
-Why dual sets: raw input dirs often include README-like repo artifacts; spec-level bundle reading should only reserve spec names.
+Why dual sets: raw input dirs often include README-like repo artifacts; spec-level bundle reading should only reserve spec names plus `agents.md` (generated at bundle root, never a concept).
 
 Implementation: `src/okf/core.py` + command logic.
 
@@ -99,6 +99,7 @@ Source: `src/okf/commands/bundle.py`.
 
 1. non-reserved markdown must have parseable YAML frontmatter;
 1. non-reserved markdown must include non-empty string `type`;
+1. `agents.md` is skipped entirely (no frontmatter/validation);
 1. `index.md` and `log.md` structure rules:
    - non-root `index.md` must not have frontmatter;
    - root `index.md` may have frontmatter only containing `okf_version`;

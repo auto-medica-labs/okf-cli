@@ -11,11 +11,11 @@
 ```bash
 uv sync
 uv run okf --help
-uv run okf bundle example bundled --default-type reference --force
-uv run okf validate bundled
-uv run okf list bundled
-uv run okf show bundled tables/customers
-uv run okf bundle example bundled --default-type reference --force --strict-links
+uv run okf bundle example --default-type reference --force
+uv run okf validate example_knowledge_base
+uv run okf list example_knowledge_base
+uv run okf show example_knowledge_base tables/customers
+uv run okf bundle example --default-type reference --force --strict-links
 ```
 
 Why this sequence:

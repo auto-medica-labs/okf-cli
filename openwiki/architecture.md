@@ -48,7 +48,7 @@ Source: `src/okf/commands/list.py`, `src/okf/commands/show.py`.
 
 - Reserved name handling differs by phase:
   - Bundling phase skips `index.md`, `log.md`, `README.md` (`RESERVED`).
-  - Spec-conformance phase reserves only `index.md`, `log.md` (`SPEC_RESERVED`).
+  - Spec-conformance phase reserves `index.md`, `log.md`, `agents.md` (`SPEC_RESERVED`). `agents.md` is reserved but skipped during conformance checks (not an error).
 - Non-UTF-8 markdown is a conformance error.
 - `type` frontmatter is required and must be non-empty for non-reserved concept files.
 

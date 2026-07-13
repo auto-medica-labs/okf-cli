@@ -19,13 +19,14 @@ Lenient fallback exists for imperfect files, but strict shape gives better metad
 ### 2) Bundle to OKF
 
 ```bash
-uv run okf bundle <input-dir> <output-dir> --default-type reference --force
-uv run okf bundle <input-dir> <output-dir> --default-type reference --force --strict-links
+uv run okf bundle <input-dir> [output-dir] [--default-type <type>] [--force] [--strict-links]
+# output-dir defaults to <input-dir>_knowledge_base
+# --default-type defaults to input directory name
 ```
 
 Important behavior:
 
-- Root-level markdown requires `--default-type`, else skipped with warning.
+- Root-level markdown uses input directory name as type if `--default-type` not specified.
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
 - `.okfignore` in input root can skip exact bundle-relative paths.
 - `--strict-links` fails if any local `.md` link is missing or points outside bundle.
@@ -91,14 +92,13 @@ Common pitfalls:
 Repo contains:
 
 - source sample: `example/`
-- generated sample: `bundled-smoke/`
 
 Use to verify end-to-end behavior quickly:
 
 ```bash
-uv run okf bundle example bundled-smoke --default-type reference --force
-uv run okf validate bundled-smoke
-uv run okf list bundled-smoke
+uv run okf bundle example --default-type reference --force
+uv run okf validate example_knowledge_base
+uv run okf list example_knowledge_base
 ```
 
-(Generated output directory is ignored by git for default `bundled/`; see `.gitignore`.)
+(Generated output directory is ignored by git for default `example_knowledge_base/`; see `.gitignore`.)

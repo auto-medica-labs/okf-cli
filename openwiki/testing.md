@@ -6,6 +6,7 @@
   - parsing helpers (`parse_md`, `parse_frontmatter`)
   - frontmatter generation (`build_frontmatter`)
   - conformance engine (`check_conformance`)
+- End-to-end smoke tests: `tests/e2e/test_e2e.py` (every CLI feature)
 - CLI integration tests:
   - bundling: `tests/cli/test_bundle.py`
   - list: `tests/cli/test_list.py`

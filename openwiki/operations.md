@@ -28,8 +28,8 @@ uvx ruff format .
 For bundle smoke:
 
 ```bash
-uv run okf bundle example bundled --default-type reference --force
-uv run okf validate bundled
+uv run okf bundle example --default-type reference --force
+uv run okf validate example_knowledge_base
 ```
 
 ## CI/CD
@@ -48,8 +48,7 @@ No deploy pipeline in repo; CI currently focused on correctness tests.
 ## Repo artifacts and hygiene
 
 - `example/` contains sample source markdown.
-- `bundled-smoke/` contains generated sample output used for smoke/reference.
-- `bundled/` is git-ignored local artifact (`.gitignore`).
+- Default output (`<input>_knowledge_base`) is git-ignored local artifact (`.gitignore`).
 
 When changing command behavior, update sample docs/output only if behavior change is intentional and tested.
 
