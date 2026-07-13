@@ -62,7 +62,8 @@ def test_bundle_default_type_includes_root_files(tmp_path: Path):
     assert 'type: "reference"' in content
 
 
-def test_bundle_skips_root_files_without_default_type(tmp_path: Path):
+def test_bundle_root_files_get_type_from_input_dir(tmp_path: Path):
+    """Root-level files get type from input directory name when --default-type omitted."""
     src = tmp_path / "src"
     dst = tmp_path / "out"
     src.mkdir()
@@ -76,8 +77,9 @@ def test_bundle_skips_root_files_without_default_type(tmp_path: Path):
 
     result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
-    assert not (dst / "domain.md").exists()
-    assert "root-level file needs --default-type" in result.output
+    assert (dst / "domain.md").exists()
+    content = (dst / "domain.md").read_text()
+    assert 'type: "src"' in content
 
 
 def test_bundle_force_overwrites(tmp_path: Path):

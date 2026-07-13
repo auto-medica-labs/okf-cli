@@ -82,7 +82,7 @@ def bundle(
         "bundled", help="Output directory for the OKF bundle (default: bundled)"
     ),
     default_type: str = typer.Option(
-        None, help="Type for root-level files (skip root files if omitted)"
+        None, help="Type for root-level files (default: input directory name)"
     ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite output directory if it exists"
@@ -156,11 +156,7 @@ def bundle(
         typer.echo("No markdown files found (excluding index.md, log.md)", err=True)
         raise typer.Exit(code=1)
 
-    planned_files = [
-        f
-        for f in md_files
-        if not (f.relative_to(src).parent == Path(".") and default_type is None)
-    ]
+    planned_files = md_files
     planned_rels = [f.relative_to(src) for f in planned_files]
     bundle_targets = {rel.as_posix() for rel in planned_rels}
 
@@ -214,13 +210,7 @@ def bundle(
 
         # Determine type
         if rel.parent == Path("."):
-            if default_type is None:
-                typer.echo(
-                    f"Warning: Skipping {rel} — root-level file needs --default-type",
-                    err=True,
-                )
-                continue
-            type_name = default_type
+            type_name = default_type or src.name
         else:
             type_name = rel.parent.name
 

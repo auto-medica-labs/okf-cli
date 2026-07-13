@@ -82,7 +82,8 @@ def test_bundle_root_file_with_default_type(tmp_path: Path):
     assert "[Standalone](standalone.md)" in root_idx
 
 
-def test_bundle_skip_root_file_without_default(tmp_path: Path, capsys):
+def test_bundle_root_file_uses_input_dir_name_without_default(tmp_path: Path):
+    """Root-level files get type from input directory name when --default-type omitted."""
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -97,14 +98,15 @@ def test_bundle_skip_root_file_without_default(tmp_path: Path, capsys):
     result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
 
-    assert not (dst / "standalone.md").exists()
+    assert (dst / "standalone.md").exists()
+    stand = (dst / "standalone.md").read_text()
+    assert 'type: "notes"' in stand
     assert (dst / "tables" / "data.md").exists()
-    assert "Skipping" in result.output
 
-    # Root index should list subdir only (standalone was skipped)
+    # Root index should list subdir + root file
     root_idx = (dst / "index.md").read_text()
     assert "[tables](tables/)" in root_idx
-    assert "[Standalone" not in root_idx
+    assert "[Standalone](standalone.md)" in root_idx
 
 
 def test_bundle_lenient_parse(tmp_path: Path):
@@ -272,7 +274,7 @@ def test_bundle_okfignore_skips_matching_files(tmp_path: Path):
     assert (dst / "tables" / "customers.md").exists()
 
 
-def test_bundle_okfignore_skips_root_file_before_default_type_check(tmp_path: Path):
+def test_bundle_okfignore_skips_root_file(tmp_path: Path):
     src = tmp_path / "notes"
     dst = tmp_path / "bundle"
     src.mkdir()
@@ -287,7 +289,6 @@ def test_bundle_okfignore_skips_root_file_before_default_type_check(tmp_path: Pa
 
     result = runner.invoke(app, ["bundle", str(src), str(dst)])
     assert result.exit_code == 0, result.output
-    assert "root-level file needs --default-type" not in result.output
     assert not (dst / "standalone.md").exists()
     assert (dst / "tables" / "data.md").exists()
 
@@ -452,9 +453,7 @@ def test_bundle_strict_links_passes_with_valid_local_links(tmp_path: Path):
             "tables/orders.md": (
                 "# Orders\n\n> One row.\n\nSee [Customers](./customers.md)."
             ),
-            "tables/customers.md": (
-                "# Customers\n\n> All customers.\n\nBody."
-            ),
+            "tables/customers.md": ("# Customers\n\n> All customers.\n\nBody."),
         },
     )
 
