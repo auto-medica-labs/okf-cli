@@ -24,10 +24,18 @@ uv run okf bundle example --default-type reference --force --strict-links
 ### Python API
 
 ```python
-from okf.api import bundle, list_concepts, show_concept, validate
+from okf.api import (
+    bundle, convert_file, convert_content,
+    list_concepts, show_concept, validate,
+)
 
+# Full directory bundle
 result = bundle("example", "out", default_type="reference", force=True)
 assert result.errors == []
+
+# Single-file conversions
+convert_file("example/tables/orders.md", "out/tables/orders.md", type_="tables")
+convert_content("# Title\n\n> Desc\n\nBody.", "out/single.md", type_="reference")
 
 concepts = list_concepts("out")
 concept = show_concept("out", "tables/customers")

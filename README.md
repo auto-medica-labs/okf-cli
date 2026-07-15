@@ -1,8 +1,8 @@
 # okf-cli — Open Knowledge Format tooling
 
-Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write `# Title` then `> description` — `okf bundle` generates frontmatter, type, timestamps, and index files. Files without strict formatting are parsed leniently: title from line 0 if present, description from body text.
+Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write the content, `okf bundle` generates frontmatter, type, timestamps, and index files.
 
-Also validates bundles and lists concept IDs for consumption by other tools.
+Also validates bundles, lists concept IDs, and reads concepts by ID.
 
 ## Install
 
@@ -34,32 +34,13 @@ okf bundle <input-dir> [output-dir] [--default-type <name>] [--force] [--strict-
 | `--strict-links` | Fail if local markdown links point outside bundle or to missing `.md` target |
 
 ```bash
-okf bundle example --default-type reference  # first run → bundled/
-okf bundle example --default-type reference --force  # re-run
-okf bundle example --default-type reference --force --strict-links  # fail on broken local .md links
-cat bundled/tables/orders.md
+okf bundle example --default-type reference  # → bundled/
+okf bundle example --default-type reference --force --strict-links
 ```
 
-`.okfignore` (bundle only):
+**`.okfignore`**: put in `input-dir` root; one bundle-relative `.md` path per line. Exact match only (no glob).
 
-- Put `.okfignore` in `input-dir`.
-- Add bundle-relative markdown paths to skip, one per line.
-- Blank lines and `#` comments ignored.
-- Matching is exact path match (no glob, no negation).
-
-```text
-# example/.okfignore
-smoke-ignore.md
-tables/orders.md
-```
-
-Local link checks during `bundle`:
-
-- Scans markdown body links to local `.md` targets.
-- Supports relative links (`./x.md`, `../x.md`) and bundle-root links (`/tables/x.md`).
-- Ignores external links (`https:`, `mailto:`), fragment-only links (`#section`), directory links, and non-`.md` targets.
-- Default mode prints warnings for missing targets or links resolving outside bundle.
-- `--strict-links` turns those warnings into a non-zero exit (`Error: strict link check failed`).
+**Link checking**: scans body links to local `.md` targets. Missing or out-of-bundle links warn by default, fail with `--strict-links`.
 
 ### `okf list` — list concept IDs in a bundle
 
@@ -67,26 +48,12 @@ Local link checks during `bundle`:
 okf list <directory>
 ```
 
-Prints concept IDs (bundle-relative path with `.md` stripped) for every
-concept file in the bundle. Reserved filenames (`index.md`, `log.md`)
-are excluded. `README.md` is not reserved by the OKF spec and is listed
-as a concept if present.
-
-Requires the directory to be a valid OKF bundle; fails if any
-non-reserved `.md` is missing frontmatter or a non-empty `type`.
+Prints concept IDs (path without `.md`). Requires valid OKF bundle.
 
 ```bash
 okf list bundled/
 # datasets/sales
-# playbooks/incident-response
 # tables/orders
-# …
-```
-
-Useful for piping OKF bundles into other tooling:
-
-```bash
-okf list bundled/ | xargs -I{} okf show bundled/ {}
 ```
 
 ### `okf show` — read a concept by ID
@@ -95,21 +62,7 @@ okf list bundled/ | xargs -I{} okf show bundled/ {}
 okf show <directory> <concept-id>
 ```
 
-Prints the full contents (frontmatter + body) of a concept file.
-Concept IDs are the bundle-relative path with `.md` stripped — exactly
-as printed by `okf list`.
-
-Requires the directory to be a valid OKF bundle.
-
-```bash
-okf show bundled/ tables/orders
-# ---
-# type: "tables"
-# title: "Customer Orders"
-# ...
-```
-
-Guards against path traversal and rejects reserved filenames.
+Prints full concept contents (frontmatter + body). Concept IDs as printed by `okf list`. Guards against path traversal.
 
 ### `okf validate` — check OKF conformance
 
@@ -117,63 +70,35 @@ Guards against path traversal and rejects reserved filenames.
 okf validate <directory>
 ```
 
-Checks OKF v0.1 §9 conformance:
-
-- Every non-reserved `.md` has parseable YAML frontmatter with non-empty `type`.
-- Reserved filenames (`index.md`, `log.md`) follow spec structure (§6/§7).
-- Non-UTF-8 files are flagged.
+Checks OKF v0.1 §9 conformance: frontmatter required, `type` required, reserved filenames follow spec structure, UTF-8 required.
 
 ```bash
 okf validate bundled/
 # 16 files: 16 ok
 ```
 
-## Writing input files (for `bundle`)
+## Input format
 
-### Strict format (recommended)
-
-Every `.md` file starts with:
+### Strict (recommended)
 
 ```markdown
 # Title
 
 > Description
-> Second optional description line.
 ```
-
-Everything after the description block is preserved unchanged.
 
 ### Lenient fallback
 
-Files that don't follow the strict format are still bundled best-effort:
+Files without strict format are bundled best-effort: title omitted if absent, description synthesized from first 80 chars of body.
 
-| Condition                                | Behavior                                                           |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| No `# Title` on line 1                   | Title omitted from frontmatter                                     |
-| No `>` description block                 | Description derived from first 80 chars of body ("…" if truncated) |
-| Root-level file without `--default-type` | Skip file, warn, continue                                          |
+| Rule                                                  | Why                                                                                              |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Folder name = concept type                            | `tables/orders.md` → `type: "tables"`                                                            |
+| Only `.md` files processed                            | Non-`.md` files ignored                                                                          |
+| `index.md`, `log.md`, `README.md` skipped in `bundle` | Repo artifacts; not OKF concepts. `list`/`show`/`validate` only reserve `index.md` and `log.md`. |
+| `.okfignore` entries skipped                          | Skip selected files without moving them.                                                         |
 
-**Rules:**
-
-| Rule                                                  | Why                                                                                                                                                                                                                         |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Folder name = concept type                            | `tables/orders.md` → `type: "tables"`                                                                                                                                                                                       |
-| Only `.md` files processed                            | Non-`.md` files ignored                                                                                                                                                                                                     |
-| `index.md`, `log.md`, `README.md` skipped in `bundle` | Input may contain repo artifacts; these are not concepts. `bundle` warns when it skips them. Other commands (`list`, `show`, `validate`) operate on conformant OKF bundles where only `index.md` and `log.md` are reserved. |
-| `.okfignore` entries skipped in `bundle`              | Add bundle-relative markdown paths (e.g. `tables/orders.md`) to skip conversion for selected files. Blank lines and `#` comments are ignored.                                                                               |
-
-Root files need `--default-type`. Otherwise put files in named folders.
-
-See the [`example/`](example/) directory for a sample of how to structure files.
-
-## How `bundle` works
-
-1. Walk `input-dir` for `.md` files (skip `.okfignore` matches and reserved names)
-1. Extract `title` from `#` on line 1, `description` from `>` block. If strict format not met, falls back: title omitted if absent, description from first 80 chars of body
-1. Check local markdown links against planned bundle targets (warn by default, or fail with `--strict-links`)
-1. Set `type` from parent dir name, `timestamp` from file mtime
-1. Write concept files with YAML frontmatter (title field omitted if empty)
-1. Generate `index.md` per directory — `# Contents` for files, `# Directories` for subdirs (recursive)
+Root files need `--default-type`. See [`example/`](example/) for sample structure.
 
 ## Output
 
@@ -190,25 +115,11 @@ timestamp: "2026-07-04T15:06:51+00:00"
 Original body preserved as-is.
 ```
 
-Every directory gets its own `index.md`:
-
-```markdown
-# Contents
-
-* [Customer Orders](orders.md) - One row per completed customer order across all channels.
-
-# Directories
-
-* [partitions](partitions/)
-```
+Every directory gets an `index.md` listing files and subdirs.
 
 ## OKF Conformance
 
-Generated bundles conform to [OKF v0.1](OKF_SPEC.md) (§9):
-
-- Every non-reserved `.md` has parseable YAML frontmatter with non-empty `type` ✓
-- Reserved filenames follow spec structure ✓
-- Consumers MUST tolerate missing optional fields, unknown types, broken links ✓
+Generated bundles conform to [OKF v0.1](OKF_SPEC.md) (§9): frontmatter required, non-empty `type`, reserved filenames follow spec structure.
 
 ## Project layout
 
@@ -219,8 +130,9 @@ okf-cli
 ├── pyproject.toml              # uv-managed Python project
 ├── src/okf/
 │   ├── cli.py            # Typer entrypoint
+│   ├── api.py            # Programmatic Python API
 │   ├── core.py           # Shared parsing/formatting
 │   └── commands/         # bundle, list, show, validate
-├── tests/test_cli.py     # Tests
+├── tests/                # pytest suite
 └── example/              # Sample input markdown
 ```
