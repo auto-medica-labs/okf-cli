@@ -54,7 +54,7 @@ class ConceptContent:
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers (extracted from commands/bundle.py)
+# Internal helpers
 # ---------------------------------------------------------------------------
 
 
@@ -166,6 +166,91 @@ def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
         if lines:
             index_path.parent.mkdir(parents=True, exist_ok=True)
             index_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Single-file conversion
+# ---------------------------------------------------------------------------
+
+
+def _write_concept(
+    title: str,
+    description: str,
+    body: str,
+    output_file: Path,
+    type_: str,
+    timestamp: str,
+) -> None:
+    """Parse content, build frontmatter, write OKF concept file."""
+    frontmatter = build_frontmatter(type_, title, description, timestamp)
+    if not (frontmatter.startswith("---\n") and frontmatter.endswith("\n---")):
+        raise ValueError("generated invalid frontmatter")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(f"{frontmatter}\n\n{body}", encoding="utf-8")
+
+
+def convert_file(
+    input_file: str | Path,
+    output_file: str | Path,
+    *,
+    type_: str,
+) -> BundleResult:
+    """Convert a single markdown file to an OKF concept.
+
+    Timestamp is derived from the input file's mtime.
+
+    Args:
+        input_file: Path to a plain markdown file.
+        output_file: Target path for the OKF concept file.
+        type_: Concept type (e.g. ``"reference"``, ``"playbook"``).
+
+    Returns:
+        BundleResult with files_written=1 on success.
+
+    Raises:
+        FileNotFoundError: If input_file does not exist.
+        ValueError: If conversion fails.
+    """
+    src = Path(input_file)
+    dst = Path(output_file)
+
+    if not src.is_file():
+        raise FileNotFoundError(f"Input file '{src}' not found")
+
+    text = src.read_text(encoding="utf-8")
+    title, description, body = parse_md(text)
+    ts = datetime.fromtimestamp(src.stat().st_mtime, tz=UTC).isoformat()
+
+    _write_concept(title, description, body, dst, type_, ts)
+    return BundleResult(files_written=1, output_dir=dst.parent)
+
+
+def convert_content(
+    content: str,
+    output_file: str | Path,
+    *,
+    type_: str,
+) -> BundleResult:
+    """Convert raw markdown content to an OKF concept.
+
+    No timestamp is set (field omitted from frontmatter).
+
+    Args:
+        content: Raw markdown text.
+        output_file: Target path for the OKF concept file.
+        type_: Concept type (e.g. ``"reference"``, ``"playbook"``).
+
+    Returns:
+        BundleResult with files_written=1 on success.
+
+    Raises:
+        ValueError: If conversion fails.
+    """
+    dst = Path(output_file)
+    title, description, body = parse_md(content)
+
+    _write_concept(title, description, body, dst, type_, "")
+    return BundleResult(files_written=1, output_dir=dst.parent)
 
 
 # ---------------------------------------------------------------------------
@@ -298,12 +383,11 @@ def bundle(
         title, description, body = parse_md(text)
         ts = datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat()
 
-        frontmatter = build_frontmatter(type_name, title, description, ts)
-        if not (frontmatter.startswith("---\n") and frontmatter.endswith("\n---")):
-            errors.append(f"{rel}: generated invalid frontmatter")
+        try:
+            _write_concept(title, description, body, out_file, type_name, ts)
+        except ValueError as e:
+            errors.append(f"{rel}: {e}")
             return BundleResult(len(processed), dst, warnings, errors)
-
-        out_file.write_text(f"{frontmatter}\n\n{body}", encoding="utf-8")
         processed.append(
             (rel, {"title": title, "description": description, "type": type_name})
         )

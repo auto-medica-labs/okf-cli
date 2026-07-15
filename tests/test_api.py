@@ -10,6 +10,8 @@ from okf.api import (
     ConceptContent,
     ValidateResult,
     bundle,
+    convert_content,
+    convert_file,
     list_concepts,
     show_concept,
     validate,
@@ -902,3 +904,138 @@ class TestWorkflow:
         content = show_concept(dst, "tables/orders")
 
         assert "Body." in content.body
+
+
+# ---------------------------------------------------------------------------
+# convert_file()
+# ---------------------------------------------------------------------------
+
+
+class TestConvertFile:
+    def test_basic(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "output.md"
+        src.write_text("# Orders\n\n> One row per order.\n\nBody.", encoding="utf-8")
+
+        result = convert_file(src, dst, type_="tables")
+
+        assert isinstance(result, BundleResult)
+        assert result.files_written == 1
+        assert result.errors == []
+        assert dst.exists()
+
+    def test_frontmatter_content(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "output.md"
+        src.write_text("# Orders\n\n> One row per order.\n\nBody.", encoding="utf-8")
+
+        convert_file(src, dst, type_="tables")
+        text = dst.read_text()
+
+        assert text.startswith("---\n")
+        assert 'type: "tables"' in text
+        assert 'title: "Orders"' in text
+        assert 'description: "One row per order."' in text
+        assert "timestamp:" in text
+
+    def test_frontmatter_valid_yaml(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "output.md"
+        src.write_text("# A\n\n> Desc.\n\nBody.", encoding="utf-8")
+
+        convert_file(src, dst, type_="ref")
+        text = dst.read_text()
+
+        fm_str = text.split("---\n")[1]
+        fm = yaml.safe_load(fm_str)
+        assert isinstance(fm, dict)
+        assert fm["type"] == "ref"
+
+    def test_body_preserved(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "output.md"
+        src.write_text("# X\n\n> Desc.\n\nBody content.", encoding="utf-8")
+
+        convert_file(src, dst, type_="ref")
+        text = dst.read_text()
+
+        assert "Body content." in text
+
+    def test_missing_input(self, tmp_path: Path):
+        with pytest.raises(FileNotFoundError, match="not found"):
+            convert_file(tmp_path / "nope.md", tmp_path / "out.md", type_="ref")
+
+    def test_creates_parent_dirs(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "sub" / "dir" / "output.md"
+        src.write_text("# X\n\n> Desc.\n\nBody.", encoding="utf-8")
+
+        convert_file(src, dst, type_="ref")
+
+        assert dst.exists()
+
+    def test_lenient_parse(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "output.md"
+        src.write_text("Just some text.", encoding="utf-8")
+
+        convert_file(src, dst, type_="ref")
+        text = dst.read_text()
+
+        assert 'type: "ref"' in text
+        assert "Just some text." in text
+
+
+# ---------------------------------------------------------------------------
+# convert_content()
+# ---------------------------------------------------------------------------
+
+
+class TestConvertContent:
+    def test_basic(self, tmp_path: Path):
+        dst = tmp_path / "output.md"
+        content = "# Orders\n\n> One row per order.\n\nBody."
+
+        result = convert_content(content, dst, type_="tables")
+
+        assert isinstance(result, BundleResult)
+        assert result.files_written == 1
+        assert dst.exists()
+
+    def test_frontmatter_content(self, tmp_path: Path):
+        dst = tmp_path / "output.md"
+        content = "# Orders\n\n> One row per order.\n\nBody."
+
+        convert_content(content, dst, type_="tables")
+        text = dst.read_text()
+
+        assert text.startswith("---\n")
+        assert 'type: "tables"' in text
+        assert 'title: "Orders"' in text
+        assert 'description: "One row per order."' in text
+        assert "timestamp" not in text
+
+    def test_body_preserved(self, tmp_path: Path):
+        dst = tmp_path / "output.md"
+        content = "# X\n\n> Desc.\n\nBody content."
+
+        convert_content(content, dst, type_="ref")
+        text = dst.read_text()
+
+        assert "Body content." in text
+
+    def test_creates_parent_dirs(self, tmp_path: Path):
+        dst = tmp_path / "sub" / "dir" / "output.md"
+
+        convert_content("# X\n\n> Desc.\n\nBody.", dst, type_="ref")
+
+        assert dst.exists()
+
+    def test_lenient_parse(self, tmp_path: Path):
+        dst = tmp_path / "output.md"
+
+        convert_content("Just some text.", dst, type_="ref")
+        text = dst.read_text()
+
+        assert 'type: "ref"' in text
+        assert "Just some text." in text
