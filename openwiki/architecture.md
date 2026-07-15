@@ -17,12 +17,12 @@ Why this split: the API layer is the canonical home for all logic. Commands hand
 
 Public functions and return types:
 
-| Function | Returns | Key behavior |
-|---|---|---|
-| `bundle(input_dir, output_dir, ...)` | `BundleResult` | Full bundle pipeline with link checking, `.okfignore`, `AGENTS.md` generation |
-| `list_concepts(bundle_dir)` | `list[str]` | Conformance-gated concept ID listing |
-| `show_concept(bundle_dir, concept_id)` | `ConceptContent` | Conformance-gated concept read with path traversal guard |
-| `validate(bundle_dir)` | `ValidateResult` | Conformance check with `.ok` property |
+| Function                               | Returns          | Key behavior                                                                  |
+| -------------------------------------- | ---------------- | ----------------------------------------------------------------------------- |
+| `bundle(input_dir, output_dir, ...)`   | `BundleResult`   | Full bundle pipeline with link checking, `.okfignore`, `AGENTS.md` generation |
+| `list_concepts(bundle_dir)`            | `list[str]`      | Conformance-gated concept ID listing                                          |
+| `show_concept(bundle_dir, concept_id)` | `ConceptContent` | Conformance-gated concept read with path traversal guard                      |
+| `validate(bundle_dir)`                 | `ValidateResult` | Conformance check with `.ok` property                                         |
 
 Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_generate_indexes`.
 

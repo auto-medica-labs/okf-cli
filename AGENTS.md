@@ -98,12 +98,12 @@ okf-cli
 
 ### Commands (thin wrappers around API)
 
-| Command    | API function           | Input expected                    | Behavior |
-| ---------- | ---------------------- | --------------------------------- | -------- |
-| `bundle`   | `api.bundle()`         | non-conformant plain markdown dir | generates OKF bundle; skips reserved files, `.okfignore` matches; link checking; `AGENTS.md` generation |
-| `list`     | `api.list_concepts()`  | OKF-conformant bundle             | prints concept IDs; exits 1 if not conformant |
-| `show`     | `api.show_concept()`   | OKF-conformant bundle             | prints concept by ID; exits 1 if not conformant |
-| `validate` | `api.validate()`       | any directory                     | prints conformance errors and summary per §9 |
+| Command    | API function          | Input expected                    | Behavior                                                                                                |
+| ---------- | --------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `bundle`   | `api.bundle()`        | non-conformant plain markdown dir | generates OKF bundle; skips reserved files, `.okfignore` matches; link checking; `AGENTS.md` generation |
+| `list`     | `api.list_concepts()` | OKF-conformant bundle             | prints concept IDs; exits 1 if not conformant                                                           |
+| `show`     | `api.show_concept()`  | OKF-conformant bundle             | prints concept by ID; exits 1 if not conformant                                                         |
+| `validate` | `api.validate()`      | any directory                     | prints conformance errors and summary per §9                                                            |
 
 ## Key conventions
 
