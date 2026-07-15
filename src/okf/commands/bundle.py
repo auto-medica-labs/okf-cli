@@ -1,77 +1,10 @@
 """okf bundle command."""
 
-import posixpath
-import re
-import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
 
-from okf.core import RESERVED, build_frontmatter, parse_md
-
-_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
-
-
-def _iter_links(text: str):
-    """Yield inline markdown link targets from body text."""
-    for m in _LINK_RE.finditer(text):
-        yield m.group(1).strip()
-
-
-def _resolve_md_target(current_rel: Path, raw_target: str) -> str | None:
-    """Resolve local markdown link target to bundle-relative POSIX path."""
-    if not raw_target:
-        return None
-
-    target = raw_target.strip()
-    if target.startswith("<") and target.endswith(">"):
-        target = target[1:-1].strip()
-    if not target:
-        return None
-
-    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target):
-        return None
-    if target.startswith("#"):
-        return None
-
-    target = target.split("#", 1)[0].split("?", 1)[0].strip()
-    if not target or target.endswith("/"):
-        return None
-    if not target.lower().endswith(".md"):
-        return None
-
-    if target.startswith("/"):
-        resolved = posixpath.normpath(target.lstrip("/"))
-    else:
-        resolved = posixpath.normpath(
-            posixpath.join(current_rel.parent.as_posix(), target)
-        )
-
-    if resolved in {"", "."}:
-        return None
-
-    return resolved
-
-
-def _load_okfignore(src: Path) -> set[str]:
-    """Load .okfignore entries as bundle-relative POSIX paths."""
-    ignore_file = src / ".okfignore"
-    if not ignore_file.is_file():
-        return set()
-
-    try:
-        lines = ignore_file.read_text(encoding="utf-8").splitlines()
-    except UnicodeDecodeError:
-        raise ValueError(".okfignore is not valid UTF-8") from None
-
-    entries: set[str] = set()
-    for raw in lines:
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        entries.add(line.lstrip("./"))
-    return entries
+from okf import api
 
 
 def bundle(
@@ -95,227 +28,32 @@ def bundle(
         help="Fail when local markdown links point outside bundle or missing targets",
     ),
 ) -> None:
-    """Convert plain markdown into an OKF-conformant knowledge bundle.
-
-    Each .md file must start with '# Title' followed by a '>' description block.
-    Directory name determines the concept 'type'. Root-level files need --default-type.
-    If output-dir is omitted, defaults to '<input-dir>_knowledge_base'.
-    """
-    src = Path(input_dir)
-
-    if output_dir is None:
-        output_dir = f"{src.name}_knowledge_base"
-
-    dst = Path(output_dir)
-
-    if not src.is_dir():
-        typer.echo(f"Error: input directory '{input_dir}' not found", err=True)
-        raise typer.Exit(code=1)
-
-    if src.resolve() == dst.resolve():
-        typer.echo(
-            "Error: input and output directories must be different",
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    if dst.exists():
-        if not force:
-            typer.echo(
-                f"Error: output directory '{output_dir}' exists. "
-                "Use --force to overwrite.",
-                err=True,
-            )
-            raise typer.Exit(code=1)
-        shutil.rmtree(dst)
-        typer.echo(f"Removed existing '{output_dir}'", err=True)
-
+    """Convert plain markdown into an OKF-conformant knowledge bundle."""
     try:
-        ignored = _load_okfignore(src)
+        result = api.bundle(
+            input_dir,
+            output_dir,
+            default_type=default_type,
+            force=force,
+            strict_links=strict_links,
+        )
+    except FileNotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+    except FileExistsError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1)
 
-    # Collect all .md files (skip .okfignore entries and reserved names)
-    md_files = []
-    for f in sorted(src.rglob("*.md")):
-        rel = f.relative_to(src)
-        rel_posix = rel.as_posix()
+    for w in result.warnings:
+        typer.echo(f"Warning: {w}", err=True)
+    for e in result.errors:
+        typer.echo(f"Error: {e}", err=True)
 
-        if rel_posix in ignored:
-            typer.echo(
-                f"Warning: Skipping {rel} — matched .okfignore",
-                err=True,
-            )
-            continue
-
-        lower = f.name.lower()
-        if lower in RESERVED:
-            typer.echo(
-                f"Warning: Skipping {rel} — "
-                f"reserved filename '{f.name}' (not a concept)",
-                err=True,
-            )
-            continue
-        md_files.append(f)
-    if not md_files:
-        typer.echo("No markdown files found (excluding index.md, log.md)", err=True)
+    if result.errors:
         raise typer.Exit(code=1)
 
-    planned_files = md_files
-    planned_rels = [f.relative_to(src) for f in planned_files]
-    bundle_targets = {rel.as_posix() for rel in planned_rels}
-
-    # Index files generated by bundle also count as valid local targets.
-    for rel in planned_rels:
-        bundle_targets.add((rel.parent / "index.md").as_posix())
-        for i in range(len(rel.parts) - 1):
-            grandparent = Path(*rel.parts[:i]) if i > 0 else Path(".")
-            bundle_targets.add((grandparent / "index.md").as_posix())
-
-    link_issues: list[str] = []
-    for f in planned_files:
-        rel = f.relative_to(src)
-        text = f.read_text(encoding="utf-8")
-        _title, _description, body = parse_md(text)
-
-        seen_warnings: set[str] = set()
-        for raw_target in _iter_links(body):
-            resolved = _resolve_md_target(rel, raw_target)
-            if resolved is None:
-                continue
-
-            if resolved.startswith("../"):
-                msg = f"Warning: {rel}: link '{raw_target}' points outside bundle"
-            elif resolved not in bundle_targets:
-                msg = (
-                    f"Warning: {rel}: link '{raw_target}' target "
-                    f"'{resolved}' not found in bundle"
-                )
-            else:
-                continue
-
-            if msg not in seen_warnings:
-                seen_warnings.add(msg)
-                link_issues.append(msg)
-
-    for msg in link_issues:
-        typer.echo(msg, err=True)
-
-    if strict_links and link_issues:
-        typer.echo("Error: strict link check failed", err=True)
-        raise typer.Exit(code=1)
-
-    # Process each file, storing metadata for index generation
-    processed: list[tuple[Path, dict]] = []  # (relative_output_path, metadata)
-
-    for f in md_files:
-        rel = f.relative_to(src)
-        out_file = dst / rel
-        out_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Determine type
-        if rel.parent == Path("."):
-            type_name = default_type or src.name
-        else:
-            type_name = rel.parent.name
-
-        # Parse
-        text = f.read_text(encoding="utf-8")
-        title, description, body = parse_md(text)
-
-        # Timestamp from file mtime
-        ts = datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat()
-
-        # Build and write
-        frontmatter = build_frontmatter(type_name, title, description, ts)
-
-        # Validate frontmatter structure
-        if not (frontmatter.startswith("---\n") and frontmatter.endswith("\n---")):
-            typer.echo(f"Error: {rel}: generated invalid frontmatter", err=True)
-            raise typer.Exit(code=1)
-
-        # Preserve original line endings? Keep as-is from input.
-        out_file.write_text(f"{frontmatter}\n\n{body}", encoding="utf-8")
-
-        processed.append(
-            (rel, {"title": title, "description": description, "type": type_name})
-        )
-
-    # Collect per-directory files and subdirectories
-    dir_files: dict[Path, list[dict]] = {}
-    dir_subdirs: dict[Path, set[str]] = {}
-
-    for rel, meta in processed:
-        parent = rel.parent
-        dir_files.setdefault(parent, []).append(
-            {
-                "title": meta["title"],
-                "description": meta["description"],
-                "path": rel.name,
-            }
-        )
-        # Record subdirectory relationships at every level
-        for i in range(len(rel.parts) - 1):
-            grandparent = Path(*rel.parts[:i]) if i > 0 else Path(".")
-            child_dir = rel.parts[i]
-            dir_subdirs.setdefault(grandparent, set()).add(child_dir)
-
-    # Generate index.md for every directory with files or subdirs
-    for dir_path in sorted(set(dir_files.keys()) | set(dir_subdirs.keys())):
-        index_path = dst / dir_path / "index.md"
-        if index_path.exists():
-            continue
-
-        lines = []
-        entries = dir_files.get(dir_path, [])
-        subdirs = sorted(dir_subdirs.get(dir_path, set()))
-
-        if entries:
-            lines.append("# Contents")
-            lines.append("")
-            for e in entries:
-                display = e["title"] if e["title"] else Path(e["path"]).stem
-                desc = f" - {e['description']}" if e.get("description") else ""
-                lines.append(f"* [{display}]({e['path']}){desc}")
-            lines.append("")
-
-        if subdirs:
-            lines.append("# Directories")
-            lines.append("")
-            for d in subdirs:
-                lines.append(f"* [{d}]({d}/)")
-            lines.append("")
-
-        if lines:
-            index_path.parent.mkdir(parents=True, exist_ok=True)
-            index_path.write_text("\n".join(lines), encoding="utf-8")
-
-    # Summary
-    n = len(processed)
-    typer.echo(f"Done. Converted {n} file{'s' if n != 1 else ''} → {dst}")
-
-    # Generate AGENTS.md at bundle root
-    (dst / "AGENTS.md").write_text(
-        f"# Knowledge Base: {dst.name}\n\n"
-        f"You are in an OKF (Open Knowledge Format) knowledge base called "
-        f"**{dst.name}**. OKF is a structured markdown format where each "
-        f"`.md` file is a concept with YAML frontmatter (`type`, `title`, "
-        f"`description`) and cross-links between related concepts.\n\n"
-        "## Instructions\n\n"
-        "- **Answer from this knowledge base only.** Use the concepts and "
-        "links here as your source of truth.\n"
-        "- **If the answer is not in the knowledge base, say so directly.** "
-        "Do not fabricate, guess, or pull from external knowledge.\n\n"
-        "## Getting Started\n\n"
-        "Read [index.md](index.md) first — it lists all concepts "
-        "and subdirectories.\n\n"
-        "## Navigation\n\n"
-        "- Follow markdown links between concepts.\n"
-        "- Each `.md` file has YAML frontmatter with `type`, `title`, "
-        "`description`.\n"
-        "- Subdirectories group related concepts by topic.\n"
-        "- Cross-links (e.g. `[Customers](/tables/customers.md)`) "
-        "express relationships.\n",
-        encoding="utf-8",
-    )
+    n = result.files_written
+    typer.echo(f"Done. Converted {n} file{'s' if n != 1 else ''} → {result.output_dir}")
