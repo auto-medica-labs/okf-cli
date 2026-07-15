@@ -61,18 +61,16 @@ Start files:
 
 - `src/okf/core.py`
 - `tests/test_core.py`
-- `tests/cli/test_validate.py`
-- `tests/cli/test_list.py`
-- `tests/cli/test_show.py`
+- `tests/test_api.py` (validate/list/show tests)
 
-Why: `check_conformance` and parsing helpers are shared dependencies across commands.
+Why: `check_conformance` and parsing helpers are shared dependencies across the API layer.
 
 ### Change bundling behavior
 
 Start files:
 
-- `src/okf/commands/bundle.py`
-- `tests/cli/test_bundle.py`
+- `src/okf/api.py` (all logic lives here)
+- `tests/test_api.py` (TestBundle class)
 
 Common pitfalls:
 
@@ -80,12 +78,17 @@ Common pitfalls:
 - keep reserved-name semantics (`README.md` reserved only for bundling phase);
 - keep `.okfignore` exact-match behavior (no globs).
 
-### Add new CLI command
+### Add new API function
 
-1. Add command implementation under `src/okf/commands/`.
+1. Add function to `src/okf/api.py` with docstring and typed return.
+1. Add tests in `tests/test_api.py`.
+1. Optionally add CLI command: thin wrapper in `src/okf/commands/`, register in `src/okf/cli.py`, add CLI tests in `tests/test_cli.py`.
+
+### Add new CLI command (without API change)
+
+1. Add thin wrapper in `src/okf/commands/` that calls an `api.*` function.
 1. Register in `src/okf/cli.py`.
-1. Add CLI integration tests.
-1. Update `README.md` and OpenWiki quickstart if UX changes.
+1. Add CLI integration tests in `tests/test_cli.py`.
 
 ## Smoke workflow with repo fixtures
 

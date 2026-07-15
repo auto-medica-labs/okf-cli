@@ -14,6 +14,7 @@ Packaging and runtime metadata: `pyproject.toml`.
 Key points:
 
 - CLI script entrypoint: `okf = "okf.cli:app"`
+- Python API: `from okf.api import bundle, list_concepts, show_concept, validate`
 - Runtime deps: `typer`, `pyyaml`
 - Dev deps include `pytest`, `ruff`
 

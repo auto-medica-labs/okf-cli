@@ -54,13 +54,17 @@ okf-cli
 ├── uv.lock                  # uv lockfile
 ├── src/okf/
 │   ├── cli.py               # Typer entrypoint, registers commands
+│   ├── api.py               # programmatic Python API (all business logic)
 │   ├── core.py              # shared parsing/formatting/conformance
 │   └── commands/
-│       ├── bundle.py        # plain markdown → OKF bundle
-│       ├── list.py          # list concept IDs
-│       ├── show.py          # print concept by ID
-│       └── validate.py      # conformance check
-└── tests/test_cli.py        # pytest suite
+│       ├── bundle.py        # thin wrapper → api.bundle()
+│       ├── list.py          # thin wrapper → api.list_concepts()
+│       ├── show.py          # thin wrapper → api.show_concept()
+│       └── validate.py      # thin wrapper → api.validate()
+└── tests/
+    ├── test_api.py          # API unit/integration tests
+    ├── test_cli.py          # CLI exit code/error message tests
+    └── test_core.py         # core helper unit tests
 ```
 
 ## Architecture
@@ -70,6 +74,14 @@ okf-cli
 - Creates the `typer.Typer` app named `okf`.
 - Registers `bundle`, `list`, `show`, `validate`.
 - No business logic here.
+
+### `src/okf/api.py` — programmatic Python API
+
+- `bundle(input_dir, output_dir, ...)` → `BundleResult`
+- `list_concepts(bundle_dir)` → `list[str]`
+- `show_concept(bundle_dir, concept_id)` → `ConceptContent`
+- `validate(bundle_dir)` → `ValidateResult`
+- All business logic lives here. Commands are thin wrappers.
 
 ### `src/okf/core.py`
 
@@ -84,14 +96,14 @@ okf-cli
   - §9.3: `index.md` must not contain frontmatter (§6), except root `index.md` may have only `okf_version` (§11). `log.md` must not contain frontmatter (§7).
   - Non-UTF-8 files are flagged as errors.
 
-### Commands
+### Commands (thin wrappers around API)
 
-| Command    | Input expected                    | Behavior                                                                                                                                                                                                                                                                 |
-| ---------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bundle`   | non-conformant plain markdown dir | generates OKF bundle; skips `index.md`, `log.md`, `README.md` with warnings; skips `.okfignore`-matched files; checks local `.md` links (warn by default, fail with `--strict-links`); root files need `--default-type`; requires `--force` to overwrite existing output |
-| `list`     | OKF-conformant bundle             | prints concept IDs; exits 1 if dir is not conformant                                                                                                                                                                                                                     |
-| `show`     | OKF-conformant bundle             | prints concept file by ID; exits 1 if dir is not conformant                                                                                                                                                                                                              |
-| `validate` | any directory                     | prints conformance errors and summary per §9                                                                                                                                                                                                                             |
+| Command    | API function           | Input expected                    | Behavior |
+| ---------- | ---------------------- | --------------------------------- | -------- |
+| `bundle`   | `api.bundle()`         | non-conformant plain markdown dir | generates OKF bundle; skips reserved files, `.okfignore` matches; link checking; `AGENTS.md` generation |
+| `list`     | `api.list_concepts()`  | OKF-conformant bundle             | prints concept IDs; exits 1 if not conformant |
+| `show`     | `api.show_concept()`   | OKF-conformant bundle             | prints concept by ID; exits 1 if not conformant |
+| `validate` | `api.validate()`       | any directory                     | prints conformance errors and summary per §9 |
 
 ## Key conventions
 
@@ -153,11 +165,13 @@ Run the full suite before finishing:
 uv run pytest -q
 ```
 
-Add tests for new behavior in `tests/test_cli.py`. Existing patterns:
+Test files:
 
-- Unit tests for `core.py` helpers.
-- CLI integration tests using `typer.testing.CliRunner` and `tmp_path`.
-- Conformance tests for `validate`, `list`, `show`.
+- `tests/test_api.py` — API functions (`bundle`, `list_concepts`, `show_concept`, `validate`), cross-command workflow tests.
+- `tests/test_cli.py` — CLI exit codes and error message formatting only.
+- `tests/test_core.py` — core helpers (`parse_md`, `parse_frontmatter`, `build_frontmatter`, `check_conformance`).
+
+Add tests for API behavior in `tests/test_api.py`. Add tests for CLI-specific behavior in `tests/test_cli.py`.
 
 ## Common tasks
 

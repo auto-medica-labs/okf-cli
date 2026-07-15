@@ -19,7 +19,7 @@ Markdown file with YAML frontmatter at top:
 - required for non-reserved files: `type` (non-empty string)
 - optional but common: `title`, `description`, `timestamp`, plus arbitrary producer-defined keys
 
-Implementation: `parse_frontmatter`, `check_conformance` in `src/okf/core.py`.
+Implementation: `parse_frontmatter`, `check_conformance` in `src/okf/core.py`. API returns parsed data via `ConceptContent` dataclass.
 
 ### Concept ID
 
@@ -27,7 +27,15 @@ Bundle-relative path without `.md` suffix.
 
 - Example: `tables/orders.md` -> `tables/orders`.
 
-Implementation: `src/okf/commands/list.py`, `src/okf/commands/show.py`.
+Implementation: `api.list_concepts()`, `api.show_concept()` in `src/okf/api.py`.
+
+### Result types (API)
+
+`src/okf/api.py` defines typed return values:
+
+- `BundleResult` — `files_written`, `output_dir`, `warnings`, `errors`
+- `ValidateResult` — `total_files`, `errors`, `warnings`, `ok` (property)
+- `ConceptContent` — `frontmatter` (dict), `body`, `raw`
 
 ### Reserved filenames
 

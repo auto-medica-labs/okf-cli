@@ -2,21 +2,46 @@
 
 ## Runtime shape
 
-`okf-cli` is intentionally small: Typer command layer + shared core helpers.
+`okf-cli` has a three-layer architecture:
 
-- CLI app creation and command registration: `src/okf/cli.py`
-- Core format/parsing/conformance helpers: `src/okf/core.py`
-- Command handlers:
-  - `bundle`: `src/okf/commands/bundle.py`
-  - `validate`: `src/okf/commands/validate.py`
-  - `list`: `src/okf/commands/list.py`
-  - `show`: `src/okf/commands/show.py`
+- **CLI layer** (`src/okf/cli.py`) — Typer app creation, command registration, `--version` callback.
+- **API layer** (`src/okf/api.py`) — programmatic Python functions, all business logic lives here.
+- **Core layer** (`src/okf/core.py`) — shared parsing, formatting, conformance helpers.
+- **Command wrappers** (`src/okf/commands/`) — thin IO/error bridges from CLI args to API calls.
 
-Why this split exists: business rules live once in `core.py`, while command files mostly handle IO/CLI errors.
+Why this split: the API layer is the canonical home for all logic. Commands handle only Typer argument parsing, error display, and exit codes. `core.py` is pure utility with no side effects.
+
+## Key modules
+
+### `src/okf/api.py` — programmatic API
+
+Public functions and return types:
+
+| Function | Returns | Key behavior |
+|---|---|---|
+| `bundle(input_dir, output_dir, ...)` | `BundleResult` | Full bundle pipeline with link checking, `.okfignore`, `AGENTS.md` generation |
+| `list_concepts(bundle_dir)` | `list[str]` | Conformance-gated concept ID listing |
+| `show_concept(bundle_dir, concept_id)` | `ConceptContent` | Conformance-gated concept read with path traversal guard |
+| `validate(bundle_dir)` | `ValidateResult` | Conformance check with `.ok` property |
+
+Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_generate_indexes`.
+
+### `src/okf/core.py` — shared utilities
+
+- `RESERVED` — filenames `bundle` skips: `index.md`, `log.md`, `readme.md`.
+- `SPEC_RESERVED` — spec-level reserved names: `index.md`, `log.md`, `agents.md`.
+- `build_frontmatter(type_, title, description, timestamp)` — YAML frontmatter via JSON-escaped values.
+- `parse_md(text)` — extracts title/description/body; strict first, lenient fallback.
+- `parse_frontmatter(text)` — parses YAML frontmatter, returns `None` for invalid.
+- `check_conformance(directory)` — validates OKF §9, returns `(errors, warnings)`.
+
+### Command wrappers (`src/okf/commands/`)
+
+Each file imports from `okf.api` and calls the corresponding function, translating exceptions to Typer exit codes. No business logic.
 
 ## Command execution flow
 
-### `okf bundle`
+### `okf bundle` (via `api.bundle()`)
 
 1. Read source directory + optional `.okfignore` (`_load_okfignore`).
 1. Walk `*.md`, skipping reserved names and ignored paths.
@@ -26,23 +51,17 @@ Why this split exists: business rules live once in `core.py`, while command file
 1. Write transformed files and generate `index.md` per directory.
 1. Write `AGENTS.md` at output root with navigation guidance for the knowledge base.
 
-Source: `src/okf/commands/bundle.py`, `src/okf/core.py`.
-
-### `okf validate`
+### `okf validate` (via `api.validate()`)
 
 1. Ensure target directory exists and has markdown files.
 1. Call `check_conformance` once.
-1. Print warnings/errors + summary, exit non-zero on errors.
+1. Return `ValidateResult` with file count, errors, and warnings.
 
-Source: `src/okf/commands/validate.py`, `src/okf/core.py`.
+### `okf list` and `okf show` (via `api.list_concepts()` / `api.show_concept()`)
 
-### `okf list` and `okf show`
-
-Both commands first run `check_conformance`. If directory is non-conformant, they refuse to proceed.
+Both functions first run `check_conformance`. If directory is non-conformant, they raise `ValueError`.
 
 Reason: reading APIs should not return misleading data from broken bundles.
-
-Source: `src/okf/commands/list.py`, `src/okf/commands/show.py`.
 
 ## Shared invariants
 
@@ -52,7 +71,7 @@ Source: `src/okf/commands/list.py`, `src/okf/commands/show.py`.
 - Non-UTF-8 markdown is a conformance error.
 - `type` frontmatter is required and must be non-empty for non-reserved concept files.
 
-Source: `src/okf/core.py`.
+Source: `src/okf/core.py` (constants), `src/okf/api.py` (enforcement).
 
 ## Evolution notes (from git history)
 
@@ -61,12 +80,14 @@ Major behavior shifts:
 - project started bundling-focused, then added `validate`/`list`/`show` workflow;
 - frontmatter parsing/conformance matured to real YAML parsing and shared conformance gating;
 - markdown parsing in bundling became lenient to tolerate imperfect source docs;
-- `.okfignore` added to allow selective exclusions without moving/deleting source files.
+- `.okfignore` added to allow selective exclusions without moving/deleting source files;
+- business logic extracted from commands into `src/okf/api.py` for programmatic use.
 
 Evidence: `git log -- src/okf/core.py`, `git log -- src/okf/commands/bundle.py`, top-level `git log --oneline`.
 
 ## Extension points
 
-- New command: add `src/okf/commands/<name>.py`, register in `src/okf/cli.py`, add CLI tests under `tests/cli/`.
-- New conformance rule: implement in `check_conformance` (`src/okf/core.py`) and update validate/list/show expectations.
+- New API function: add to `src/okf/api.py` with typed return, add tests in `tests/test_api.py`.
+- New command: add thin wrapper in `src/okf/commands/`, register in `src/okf/cli.py`, add CLI tests in `tests/test_cli.py`.
+- New conformance rule: implement in `check_conformance` (`src/okf/core.py`) and update API/validate expectations.
 - New metadata field support: no schema migration required; parser already tolerates extra YAML keys.

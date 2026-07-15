@@ -3,10 +3,13 @@
 `okf-cli` converts plain markdown directories into Open Knowledge Format (OKF) bundles, then validates and reads those bundles.
 
 - CLI entrypoint: `src/okf/cli.py`
+- Programmatic Python API: `src/okf/api.py`
 - Shared parsing/conformance logic: `src/okf/core.py`
-- Commands: `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/show.py`
+- Commands (thin wrappers): `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/show.py`
 
 ## Start in 5 minutes
+
+### CLI
 
 ```bash
 uv sync
@@ -16,6 +19,22 @@ uv run okf validate example_knowledge_base
 uv run okf list example_knowledge_base
 uv run okf show example_knowledge_base tables/customers
 uv run okf bundle example --default-type reference --force --strict-links
+```
+
+### Python API
+
+```python
+from okf.api import bundle, list_concepts, show_concept, validate
+
+result = bundle("example", "out", default_type="reference", force=True)
+assert result.errors == []
+
+concepts = list_concepts("out")
+concept = show_concept("out", "tables/customers")
+print(concept.body)
+
+report = validate("out")
+assert report.ok
 ```
 
 Why this sequence:
