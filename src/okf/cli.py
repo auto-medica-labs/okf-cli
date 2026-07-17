@@ -5,7 +5,9 @@ from importlib.metadata import version as _version
 import typer
 
 from okf.commands.bundle import bundle
+from okf.commands.clone import clone
 from okf.commands.list import cmd_list
+from okf.commands.publish import publish
 from okf.commands.show import cmd_show
 from okf.commands.validate import validate
 
@@ -36,6 +38,8 @@ def main(
 
 
 app.command()(bundle)
+app.command("publish")(publish)
+app.command("clone")(clone)
 app.command("list")(cmd_list)
 app.command("show")(cmd_show)
 app.command("validate")(validate)

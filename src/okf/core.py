@@ -6,6 +6,8 @@ from typing import Any
 
 import yaml
 
+OKF_VERSION = "0.1"
+
 RESERVED = frozenset({"index.md", "log.md", "readme.md"})
 SPEC_RESERVED = frozenset({"index.md", "log.md", "agents.md"})
 
