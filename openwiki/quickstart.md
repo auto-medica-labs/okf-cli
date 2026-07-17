@@ -1,11 +1,13 @@
 # okf-cli OpenWiki quickstart
 
-`okf-cli` converts plain markdown directories into Open Knowledge Format (OKF) bundles, then validates and reads those bundles.
+`okf-cli` converts plain markdown directories into Open Knowledge Format (OKF) bundles, validates and reads them, and can publish/clone bundles to an `okf-server`.
 
 - CLI entrypoint: `src/okf/cli.py`
 - Programmatic Python API: `src/okf/api.py`
 - Shared parsing/conformance logic: `src/okf/core.py`
-- Commands (thin wrappers): `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/show.py`
+- Remote client helpers: `src/okf/remote.py`
+- Commands (thin wrappers): `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/show.py`, `src/okf/commands/publish.py`, `src/okf/commands/clone.py`
+- Server subsystem: `src/okf/server/` (FastAPI app, auth, storage)
 
 ## Start in 5 minutes
 
@@ -19,6 +21,22 @@ uv run okf validate example_knowledge_base
 uv run okf list example_knowledge_base
 uv run okf show example_knowledge_base tables/customers
 uv run okf bundle example --default-type reference --force --strict
+```
+
+Remote sharing requires server optional dependencies:
+
+```bash
+uv sync --all-extras
+okf-server serve --store ~/.okf/store --database ~/.okf/server.db
+```
+
+Then publish, list, show, and clone from the server:
+
+```bash
+uv run okf publish example_knowledge_base mybundle --token "$OKF_TOKEN"
+uv run okf list --remote alice/mybundle
+uv run okf show --remote alice/mybundle --concept-id tables/customers
+uv run okf clone alice/mybundle
 ```
 
 ### Python API
@@ -64,4 +82,5 @@ Why this sequence:
 
 - Add/modify CLI behavior: start at [Architecture](architecture.md), then [Testing](testing.md).
 - Change format/conformance rules: start at [Domain model](domain-model.md), then `src/okf/core.py` + validate/list/show tests.
+- Work on remote sharing or the server: start at [Architecture](architecture.md), then [Operations](operations.md) and [Testing](testing.md).
 - Update docs/user guidance: check `README.md` and align with this OpenWiki.

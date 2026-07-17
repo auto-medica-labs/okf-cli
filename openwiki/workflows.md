@@ -90,6 +90,77 @@ Common pitfalls:
 1. Register in `src/okf/cli.py`.
 1. Add CLI integration tests in `tests/test_cli.py`.
 
+## Remote sharing workflow
+
+1. **Install server extras**:
+
+   ```bash
+   uv sync --all-extras
+   ```
+
+1. **Start an okf-server** (local or hosted):
+
+   ```bash
+   okf-server serve --store ~/.okf/store --database ~/.okf/server.db
+   ```
+
+1. **Get a token**:
+
+   ```bash
+   curl -X POST http://localhost:8080/api/v1/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"username":"alice","password":"secret"}'
+   ```
+
+   Store the returned bearer token in `OKF_TOKEN`.
+
+1. **Publish a local bundle**:
+
+   ```bash
+   uv run okf publish example_knowledge_base mybundle --token "$OKF_TOKEN"
+   # or rely on OKF_TOKEN env var
+   ```
+
+1. **List and read remote concepts**:
+
+   ```bash
+   uv run okf list --remote alice/mybundle
+   uv run okf show --remote alice/mybundle --concept-id tables/customers
+   ```
+
+1. **Clone a published bundle**:
+
+   ```bash
+   uv run okf clone alice/mybundle
+   ```
+
+Server URL resolution order: explicit `--url` → `OKF_URL` environment variable → default `https://okf.com`.
+
+Source: `src/okf/remote.py`, `src/okf/server/app.py`.
+
+## Server workflow
+
+Run the server for local development:
+
+```bash
+uv sync --all-extras
+okf-server serve --host 0.0.0.0 --port 8080 --store ~/.okf/store --database ~/.okf/server.db
+```
+
+Key options:
+
+| Option | Default | Purpose |
+| ------ | ------- | ------- |
+| `--host` | `0.0.0.0` | Bind address |
+| `--port` | `8080` | Listen port |
+| `--store` | `~/.okf/store` | Filesystem root for published bundles |
+| `--database` | `~/.okf/server.db` | SQLite database for user credentials/tokens |
+| `--allow-register` | `true` | Allow new user registrations |
+
+For containerized deployment the `Dockerfile` sets `--store /data/store --database /data/server.db` and exposes `8080`; mount `/data` as a volume.
+
+Source: `src/okf/server/cli.py`, `Dockerfile`.
+
 ## Smoke workflow with repo fixtures
 
 Repo contains:
@@ -105,3 +176,5 @@ uv run okf list example_knowledge_base
 ```
 
 (Generated output directory is ignored by git for default `example_knowledge_base/`; see `.gitignore`.)
+
+There is also a Docker-based smoke test for the full publish/list/show/clone cycle: `scripts/smoke.sh`.

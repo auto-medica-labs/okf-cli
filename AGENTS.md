@@ -2,15 +2,17 @@
 
 This file is for AI agents (and humans) picking up work on `okf-cli`.
 
-## OpenWiki (read first)
+## OpenWiki
 
-This repository has documentation in `openwiki/`.
+This repository has documentation located in the /openwiki directory.
 
 Start here:
 
 - [OpenWiki quickstart](openwiki/quickstart.md)
 
-Then follow links to architecture, workflows, domain model, operations, and testing notes relevant to task.
+OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+
+When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
 
 ## Tech stack
 
@@ -42,15 +44,28 @@ okf-cli
 │   ├── cli.py               # Typer entrypoint, registers commands
 │   ├── api.py               # programmatic Python API (all business logic)
 │   ├── core.py              # shared parsing/formatting/conformance
-│   └── commands/
-│       ├── bundle.py        # thin wrapper → api.bundle()
-│       ├── list.py          # thin wrapper → api.list_concepts()
-│       ├── show.py          # thin wrapper → api.show_concept()
-│       └── validate.py      # thin wrapper → api.validate()
+│   ├── remote.py            # HTTP client helpers for remote commands
+│   ├── commands/
+│   │   ├── bundle.py        # thin wrapper → api.bundle()
+│   │   ├── clone.py         # thin wrapper → remote clone
+│   │   ├── list.py          # thin wrapper → api.list_concepts() or remote list
+│   │   ├── publish.py       # thin wrapper → remote publish
+│   │   ├── show.py          # thin wrapper → api.show_concept() or remote show
+│   │   └── validate.py      # thin wrapper → api.validate()
+│   └── server/              # okf-server FastAPI app, auth, storage
+│       ├── app.py           # FastAPI route definitions
+│       ├── auth.py          # SQLite-backed user/token store
+│       ├── cli.py           # okf-server Typer entrypoint
+│       ├── storage.py       # filesystem bundle store
+│       └── _common.py       # slug validation, reserved usernames
 └── tests/
     ├── test_api.py          # API unit/integration tests
-    ├── test_cli.py          # CLI exit code/error message tests
-    └── test_core.py         # core helper unit tests
+    ├── test_cli.py          # CLI exit code/error message tests (includes remote)
+    ├── test_core.py         # core helper unit tests
+    └── server/              # server subsystem tests
+        ├── test_auth.py     # user store tests
+        ├── test_server_api.py  # FastAPI route tests
+        └── test_storage.py  # FileStore tests
 ```
 
 ## Common tasks
