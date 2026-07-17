@@ -1,16 +1,18 @@
-# Plan: OKF hosted server + remote commands (v3 — namespaced)
+# Plan: OKF hosted server + remote commands (v4 — GitHub-style URLs)
 
 ## Motivation
 
-Currently `okf` operates only on local filesystem bundles. User wants:
+Currently `okf` operates only on local filesystem bundles. The goal is to turn
+`okf` into a public knowledge repository where:
 
-- `okf publish` — upload local OKF bundle to hosted service
-- `okf list --remote` / `okf show --remote` — browse remote bundle without download
-- `okf clone` — download remote bundle to local
+- Anyone can browse knowledge bundles at `okf.com/<username>/<bundle>`.
+- Registered users can publish OKF bundles with `okf publish`.
+- Anyone can clone/download a bundle with `okf clone <username>/<bundle>`.
+- Browsing a bundle lands on its root `index.md`.
+- All published bundles are public by default; private bundles are a future add-on.
 
-HTTP REST API chosen — supports `list`/`show` without full download, zero new deps on the client side (stdlib `urllib` + `tarfile`).
-
-Server is part of this repo — `okf-server` binary shipped alongside `okf` CLI, reusing `okf.core` and `okf.api` so conformance logic stays in one place.
+This plan replaces the previous token-hash namespace design with a real
+username namespace, SQLite-backed auth, and GitHub-style URLs.
 
 ---
 
@@ -18,228 +20,307 @@ Server is part of this repo — `okf-server` binary shipped alongside `okf` CLI,
 
 Two binaries, one package:
 
-```
+```text
 pyproject.toml
 ├── [project.scripts]
-│   ├── okf         = "okf.cli:app"           ← existing, unchanged
+│   ├── okf         = "okf.cli:app"           ← existing, extended with remote commands
 │   └── okf-server  = "okf.server.cli:app"    ← NEW
 ├── [project.optional-dependencies]
 │   └── server = ["fastapi>=0.115", "python-multipart>=0.0.20", "uvicorn[standard]>=0.30"]
 ```
 
-```
+```text
 src/okf/
-├── core.py                    ← +OKF_VERSION constant only
-├── api.py                     ← unchanged
-├── cli.py                     ← unchanged
-├── commands/                  ← unchanged
-│   ├── bundle.py, list.py, show.py, validate.py
-└── server/                    ← NEW
+├── core.py                     ← +OKF_VERSION constant only
+├── api.py                      ← unchanged
+├── cli.py                      ← registers publish, clone, --remote flags
+├── commands/
+│   ├── bundle.py, list.py, show.py, validate.py  ← list/show gain --remote
+│   ├── publish.py              ← NEW
+│   └── clone.py                ← NEW
+└── server/                     ← NEW
     ├── __init__.py
-    ├── storage.py             ← FileStore class (seam for future backends)
-    ├── app.py                 ← FastAPI app + routes + auth dependency
-    └── cli.py                 ← typer app for okf-server serve
+    ├── auth.py                 ← SQLite user store, password hashing, tokens
+    ├── storage.py              ← FileStore class
+    ├── app.py                  ← FastAPI app + routes
+    └── cli.py                  ← typer app for okf-server serve
+```
+
+---
+
+## Auth model
+
+Real user accounts backed by SQLite (`sqlite3` from the stdlib, no new
+dependency).
+
+### Schema
+
+```sql
+CREATE TABLE users (
+    username TEXT PRIMARY KEY,
+    password_hash BLOB,
+    salt BLOB,
+    token TEXT UNIQUE,
+    created_at TEXT
+);
+```
+
+- Passwords hashed with `hashlib.scrypt` + random salt.
+- Tokens generated with `secrets.token_urlsafe(32)`.
+- `Authorization: Bearer <token>` is used for all authenticated endpoints.
+
+### Endpoints
+
+```text
+POST /api/v1/auth/register
+  body: {"username": "...", "password": "..."}
+  → 201 {"username": "...", "token": "..."}
+  → 409 if username is taken
+  → 400 if username/bundle-slug rules violated
+
+POST /api/v1/auth/login
+  body: {"username": "...", "password": "..."}
+  → 200 {"username": "...", "token": "..."}
+  → 401 if credentials are invalid
+```
+
+Registration is open by default. The server can disable it with
+`--allow-register false`.
+
+### Reserved usernames
+
+These are reserved to avoid route collisions:
+
+```text
+api, static, health, www, default
 ```
 
 ---
 
 ## Storage design
 
-**Format on disk:** extracted directory tree at `<store_root>/<token_hash>/<bundle-name>/`.
+**Format on disk:** extracted directory tree at
+`<store_root>/<username>/<bundle-name>/`.
 
-Why directory, not stored-as-tar:
-- `list`/`show` are hot path — direct filesystem reads, no unpacking
-- Server reuses `okf.api.list_concepts` / `okf.api.show_concept` directly — they operate on `Path` directories
-- `archive` is cold path — tar.gz created on-the-fly when `GET /archive` is hit
+Why directories:
 
-### MVP: `FileStore` (local disk)
+- `list`/`show` are hot path — direct filesystem reads.
+- The server reuses `okf.api.list_concepts` / `okf.api.show_concept`.
+- `archive` is cold path — tar.gz created on-the-fly.
 
-`FileStore` works fine for MVP: single server, few users, tiny bundles (KB each). 10k bundles × 50KB = 500MB — disk lasts long time.
-
-### Seam for future backends
-
-`FileStore` class wraps all disk access. Route handlers call `store.list_concepts(owner_hash, name)`, not raw `os.listdir`. When the service grows, write a new class with same method signatures, swap one line in `cli.py`. No interface/ABC — just a concrete class. YAGNI on the abstraction until it's needed.
-
-| Phase | Backend | When |
-|-------|---------|------|
-| MVP | `FileStore` (local disk) | Now. Single server, few users. |
-| Growth | `S3Store` (S3/R2) | Disk fills up, need HA. Concepts stored as individual objects. Archive = precomputed or on-the-fly tar. |
-| Big | `DBStore` (Postgres + blob store) | Need search, metadata queries, per-user stats. |
-
-### Namespace & Ownership model
-
-Bundle names are unique **per token namespace** — `user1/my-bundle` and `user2/my-bundle` are independent. The "user" identifier is the token hash: `sha256(token)[:16]`.
-
-```
+```text
 store/
-├── abc123def0123456/              ← token hash (16 chars)
-│   ├── my-bundle/
-│   │   ├── .owner          ← "abc123def0123456" (metadata, survives backend swap)
-│   │   ├── tables/
-│   │   │   └── orders.md
-│   │   └── ...
-│   └── other-bundle/
-│       ├── .owner          ← "abc123def0123456"
+├── alice/
+│   └── widgets/
+│       ├── .owner          ← "alice"
+│       ├── index.md
+│       ├── tables/
+│       │   ├── orders.md
+│       │   └── customers.md
 │       └── ...
-└── fed987cba0987654/              ← different token
-    └── my-bundle/                 ← same name, different namespace, no conflict
-        ├── .owner          ← "fed987cba0987654"
+└── bob/
+    └── api-docs/
         └── ...
 ```
 
-- **Token hash** = `sha256(token.encode()).hexdigest()[:16]`
-- **No token (auth disabled)** → namespace = `public/` (shared, anyone can read/write)
-- **Auth required (POST)** → namespace derived from token in `Authorization` header
-- **Auth optional (GET)** → if `public_read=true` and no token, use `public/` namespace; if token provided, use that token's namespace
-- **Force-replace** → only replaces bundles in **your** namespace (no cross-namespace access possible)
-- **`.owner` file** = metadata written on publish (same value as namespace). Redundant for `FileStore` but useful for backend swaps where path conventions differ.
-
-No 409 conflicts between users. No 403 ownership errors. Each user isolated in their namespace.
-
-**Flow:**
-
-```
-POST upload (tar.gz)
-  → derive namespace from token → store/<namespace>/
-  → unpack tar to temp dir
-  → okf.core.check_conformance(temp_dir)
-  → if clean: move temp_dir → store/<namespace>/<name>/
-  → if not: return errors, temp dir cleaned up
-  → original tar.gz discarded
-  → write .owner with namespace hash
-
-GET /archive
-  → tar + gzip store/<namespace>/<name>/ → serve as application/gzip
-
-GET /concepts
-  → store.list_concepts(namespace, name) → json array
-
-GET /concepts/:id
-  → store.read_concept(namespace, name, id) → raw markdown
-```
+- Username = namespace.
+- Bundle names and usernames share the slug regex:
+  `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`.
+- `.owner` file stores the publishing username for portability.
 
 ---
 
 ## API contract
 
-```
-GET    /api/v1/                              → healthcheck
+### Public routes (no auth)
+
+```text
+GET /api/v1/                              → healthcheck
   200  { "okf_server": "0.1.0", "okf_version": "0.1" }
 
-GET    /api/v1/bundles                       → list bundles in your namespace
-  Auth:   Bearer <token> (required when token set)
-  200  ["my-bundle", "other-bundle"]
+GET /api/v1/catalog                       → all public bundles
+  200  [{ "username": "alice", "name": "widgets" }, ...]
 
-POST   /api/v1/bundles/:name
-  Auth:   Bearer <token>
-  Body:   multipart form, field "bundle" = tar.gz file
-  201  { "name": "...", "concepts": 42 }
-  400  { "error": "not conformant", "details": ["path: missing type", ...] }
-  409  { "error": "bundle already exists, use ?force=true" }  (in your namespace)
+GET /{username}                           → user's bundles
+  200  ["widgets", "api-docs"]
+  404  if user has no bundles
 
-GET    /api/v1/bundles/:name/concepts
-  Auth:   Bearer <token> (optional, controlled by --public-read)
+GET /{username}/{bundle}                  → root index.md
+  200  text/markdown; charset=utf-8
+  404  if bundle or root index.md not found
+
+GET /{username}/{bundle}/concepts         → concept IDs
   200  ["tables/orders", "tables/customers", "playbooks/oncall"]
-  404  { "error": "bundle not found" }
+  404  if bundle not found
 
-GET    /api/v1/bundles/:name/concepts/{id:path}
-  Auth:   Bearer <token> (optional)
-  200  raw markdown (Content-Type: text/markdown; charset=utf-8)
-  404  { "error": "concept not found" }
+GET /{username}/{bundle}/concepts/{id:path}
+                                          → raw concept markdown
+  200  text/markdown; charset=utf-8
+  404  if bundle or concept not found
 
-GET    /api/v1/bundles/:name/archive
-  Auth:   Bearer <token> (optional)
-  200  application/gzip tar archive
-  404  { "error": "bundle not found" }
+GET /{username}/{bundle}/archive          → tar.gz download
+  200  application/gzip
+  404  if bundle not found
 ```
 
-- `:name` — bundle name slug: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`.
-- `:id` — concept ID exactly as `list` returns (e.g. `tables/orders`). `:path` FastAPI converter to allow slashes.
-- **Auth:** single server-wide token via `--token` flag. If `--token` is empty string, auth disabled entirely — all endpoints use `public/` namespace. GET endpoints: if `--public-read` is False (default), token required. If True, missing token → `public/` namespace. POST always requires auth when token is set. No user model, no token-per-bundle, no registration.
-- `?force=true` query param on POST to replace existing bundle in your namespace. No backups kept on replace (YAGNI — add `--keep-backups` flag later if needed).
+`:id` uses the `:path` FastAPI converter to allow slashes (e.g.
+`tables/orders`).
 
-### Non-conformant bundles
+### Authenticated routes
 
-`api.list_concepts` and `api.show_concept` raise `ValueError` on non-conformant bundles. For a server browsing use case, we still want partial results. `FileStore.list_concepts` catches this, logs a warning, and falls back to listing all non-reserved `.md` files. `FileStore.read_concept` falls back to raw file read. Both guard against path traversal.
+```text
+GET /api/v1/bundles                       → list your bundles
+  Auth: Bearer <token>
+  200  ["widgets", "api-docs"]
+
+POST /api/v1/bundles/{name}
+  Auth:   Bearer <token>
+  Body:   multipart form, field "bundle" = tar.gz file
+  Query:  ?force=true
+  201  { "username": "...", "name": "...", "concepts": 42 }
+  400  { "error": "not conformant", "details": [...] }
+  409  { "error": "bundle already exists, use ?force=true" }
+```
+
+### Publish flow
+
+1. Client tars the local OKF bundle directory.
+2. `POST /api/v1/bundles/{name}` uploads the tar.gz.
+3. Server unpacks to a temp directory.
+4. Server runs `okf.core.check_conformance(temp_dir)`.
+5. Non-conformant bundles are rejected with a `400` and the conformance errors.
+6. Conformant bundles are moved to `store/<username>/<name>/`.
+7. If the bundle exists and `?force=true` is not set, return `409`.
+8. Write `.owner` containing the username.
+
+Because all published bundles are public by default, the public routes can read
+any stored bundle.
+
+---
+
+## Client commands
+
+Default server URL is defined in code and can be overridden with `--url` or an
+`OKF_URL` environment variable.
+
+```python
+DEFAULT_SERVER_URL = "https://okf.com"  # patch for your own domain
+```
+
+### Commands
+
+```text
+okf publish <bundle-dir> [<name>] --token <token> [--url <url>] [--force]
+  - Default <name> is the bundle directory name.
+  - Tars the directory and POSTs to /api/v1/bundles/{name}.
+
+okf clone <ref> [local-dir] [--token <token>] [--url <url>]
+  - <ref> is either username/bundle or a full URL.
+  - Downloads /{username}/{bundle}/archive and extracts it.
+  - Default local-dir is the bundle name.
+
+okf list --remote <ref> [--token <token>] [--url <url>]
+  - GET /{username}/{bundle}/concepts.
+
+okf show --remote <ref> <concept-id> [--token <token>] [--url <url>]
+  - GET /{username}/{bundle}/concepts/{id}.
+```
+
+Client uses stdlib `urllib` + `tarfile` only — no new CLI dependencies.
 
 ---
 
 ## Server files
 
-### `src/okf/server/storage.py`
+### `src/okf/server/auth.py`
 
-`FileStore` class — sole access point to the filesystem. No raw `Path` operations in route handlers. All methods take `owner_hash` for namespace resolution.
+```python
+class UserStore:
+    def __init__(self, db_path: str | Path): ...
+
+    def register(self, username: str, password: str) -> str: ...  # returns token
+    def login(self, username: str, password: str) -> str: ...      # returns token
+    def username_for_token(self, token: str) -> str | None: ...
+    def username_exists(self, username: str) -> bool: ...
+```
+
+Password hashing:
+
+```python
+salt = secrets.token_bytes(32)
+hash = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+```
+
+### `src/okf/server/storage.py`
 
 ```python
 class FileStore:
     def __init__(self, root: str | Path): ...
 
-    # Namespace
-    def namespace_path(self, owner_hash: str) -> Path           # store_root / owner_hash
-    def list_bundles(self, owner_hash: str) -> list[str]        # bundle names in namespace
+    def user_path(self, username: str) -> Path
+    def list_bundles(self, username: str) -> list[str]
 
-    # Per-bundle path
-    def bundle_path(self, owner_hash: str, name: str) -> Path   # namespace / name
-    def bundle_exists(self, owner_hash: str, name: str) -> bool
+    def bundle_path(self, username: str, name: str) -> Path
+    def bundle_exists(self, username: str, name: str) -> bool
 
-    # Concepts — delegates to okf.api with graceful fallback
-    def list_concepts(self, owner_hash: str, name: str) -> list[str]
-    def read_concept(self, owner_hash: str, name: str, cid: str) -> tuple[dict, str]
-        # (frontmatter, body), guards traversal
+    def list_concepts(self, username: str, name: str) -> list[str]
+    def read_concept(self, username: str, name: str, cid: str) -> tuple[dict, str]
 
-    # Import/export
-    def store_bundle(self, owner_hash: str, name: str, tar_path: Path, force: bool = False)
-        -> tuple[list[str], list[str]]
-        # 1. if bundle_exists and not force → return (["already exists"], [])
-        # 2. unpack tar to temp dir (tempfile.mkdtemp)
-        # 3. run okf.core.check_conformance(temp_dir)
-        # 4. if errors → return (errors, []), clean up temp
-        # 5. if clean → if force: delete existing. Move temp → bundle_path
-        # 6. write .owner with owner_hash
-        # 7. return ([], [warnings])
-    def archive_bundle(self, owner_hash: str, name: str) -> Path  # creates temp tar.gz, returns path
-    def delete_bundle(self, owner_hash: str, name: str) -> None
+    def store_bundle(self, username: str, name: str, tar_path: Path, force: bool = False)
+        -> tuple[list[str], list[str]]        # (errors, warnings)
+    def archive_bundle(self, username: str, name: str) -> Path
+    def delete_bundle(self, username: str, name: str) -> None
 ```
+
+All path construction validates slugs and guards against traversal.
 
 ### `src/okf/server/app.py`
 
-FastAPI app factory. Auth deps return `AuthInfo` dataclass with `token_hash` field. Route handlers pass it to `FileStore` methods as `owner_hash`.
-
 ```python
-from dataclasses import dataclass
-
 @dataclass
 class AuthInfo:
-    token_hash: str  # sha256(token)[:16], or "public" when auth disabled
+    username: str
 
-def create_app(store: FileStore, token: str, public_read: bool) -> FastAPI:
-    app = FastAPI(title="okf-server")
-
-    @app.get("/api/v1/")
-    def health(): ...
-
-    @app.get("/api/v1/bundles")
-    def list_bundles(auth: AuthInfo = Depends(require_auth)): ...
-
-    @app.post("/api/v1/bundles/{name}")
-    def publish_bundle(name: str, bundle: UploadFile, force: bool = False,
-                       auth: AuthInfo = Depends(require_auth)): ...
-
-    @app.get("/api/v1/bundles/{name}/concepts")
-    def list_concepts(name: str, auth: AuthInfo = Depends(optional_auth)): ...
-
-    @app.get("/api/v1/bundles/{name}/concepts/{cid:path}")
-    def get_concept(name: str, cid: str, auth: AuthInfo = Depends(optional_auth)): ...
-
-    @app.get("/api/v1/bundles/{name}/archive")
-    def download_bundle(name: str, auth: AuthInfo = Depends(optional_auth)): ...
-
-    return app
+def create_app(store: FileStore, user_store: UserStore, allow_register: bool) -> FastAPI: ...
 ```
 
-Auth dependencies:
-- `require_auth` — if server token set, check `Authorization: Bearer <token>`. Return `AuthInfo(token_hash)`. If no server token set, return `AuthInfo("public")`.
-- `optional_auth` — if `public_read=True` and no header, return `AuthInfo("public")`. If header present, verify token and return `AuthInfo(token_hash)`. If `public_read=False`, same as `require_auth`.
+Routes:
+
+```python
+@app.get("/api/v1/")
+def health(): ...
+
+@app.post("/api/v1/auth/register")
+def register(credentials: RegisterRequest): ...
+
+@app.post("/api/v1/auth/login")
+def login(credentials: LoginRequest): ...
+
+@app.get("/api/v1/bundles")
+def list_my_bundles(auth: AuthInfo = Depends(require_auth)): ...
+
+@app.post("/api/v1/bundles/{name}")
+def publish_bundle(name: str, bundle: UploadFile, force: bool = False,
+                   auth: AuthInfo = Depends(require_auth)): ...
+
+@app.get("/api/v1/catalog")
+def catalog(): ...
+
+@app.get("/{username}")
+def user_bundles(username: str): ...
+
+@app.get("/{username}/{bundle}")
+def bundle_landing(username: str, bundle: str): ...
+
+@app.get("/{username}/{bundle}/concepts")
+def list_concepts(username: str, bundle: str): ...
+
+@app.get("/{username}/{bundle}/concepts/{cid:path}")
+def get_concept(username: str, bundle: str, cid: str): ...
+
+@app.get("/{username}/{bundle}/archive")
+def download_bundle(username: str, bundle: str): ...
+```
 
 ### `src/okf/server/cli.py`
 
@@ -248,17 +329,13 @@ app = typer.Typer(name="okf-server")
 
 @app.command()
 def serve(
-    token: str = typer.Option("", help="Bearer token (empty disables auth)"),
     host: str = typer.Option("0.0.0.0"),
     port: int = typer.Option(8080),
     store: str = typer.Option("~/.okf/store"),
-    public_read: bool = typer.Option(False, help="Allow unauthenticated GET requests"),
+    database: str = typer.Option("~/.okf/server.db"),
+    allow_register: bool = typer.Option(True, help="Allow new user registration"),
 ):
-    store_path = Path(store).expanduser()
-    store_path.mkdir(parents=True, exist_ok=True)
-    file_store = FileStore(store_path)
-    app = create_app(file_store, token=token, public_read=public_read)
-    uvicorn.run(app, host=host, port=port)
+    ...
 ```
 
 ---
@@ -271,7 +348,18 @@ def serve(
 OKF_VERSION = "0.1"
 ```
 
-### `pyproject.toml` — two additions
+### `src/okf/cli.py`
+
+Register new commands and extend `list`/`show`:
+
+```python
+app.command("publish")(publish)
+app.command("clone")(clone)
+```
+
+`list` and `show` gain a `--remote` option.
+
+### `pyproject.toml`
 
 ```toml
 [project.scripts]
@@ -281,86 +369,94 @@ okf-server = "okf.server.cli:app"
 server = ["fastapi>=0.115", "python-multipart>=0.0.20", "uvicorn[standard]>=0.30"]
 ```
 
-### Everything else: zero changes
+### Everything else
 
-- `okf.cli`, `okf.api`, `okf.commands.*` — untouched
-- No new deps for `okf` CLI itself
+- `okf.api`, `okf.commands.bundle`, `okf.commands.validate` — untouched.
+- No new deps for the base `okf` CLI.
 
 ---
 
 ## Testing
 
-### `tests/server/test_storage.py`
-
-Unit tests against `FileStore` backed by `tmp_path`. No FastAPI.
+### `tests/server/test_auth.py`
 
 | Test | What |
 |------|------|
-| `test_namespace_isolation` | Two tokens, same bundle name → stored in separate namespaces |
-| `test_store_conformant` | Valid tar → stored in namespace, listed, readable |
-| `test_store_nonconformant` | Invalid tar → errors returned, nothing stored |
-| `test_store_replace_with_force` | Second publish with force in same namespace → replaces |
+| `test_register_and_login` | Register returns token; login returns same token |
+| `test_register_duplicate_username` | Second registration with same username returns 409 |
+| `test_login_wrong_password` | Bad password returns 401 |
+| `test_reserved_username_rejected` | `api`, `www`, etc. cannot be registered |
+| `test_invalid_username_slug` | Usernames must match slug regex |
+| `test_username_for_token` | Token lookup returns correct username |
+
+### `tests/server/test_storage.py`
+
+| Test | What |
+|------|------|
+| `test_store_conformant_bundle` | Valid tar → stored, listed, readable |
+| `test_store_nonconformant_bundle` | Invalid tar → errors, nothing stored |
+| `test_store_replace_with_force` | Force publish replaces existing bundle |
 | `test_store_replace_without_force` | Second publish without force → error |
-| `test_read_concept_traversal` | `../../etc/passwd` → ValueError |
+| `test_username_namespace_isolation` | Same bundle name under different users is independent |
+| `test_read_concept_traversal` | `../../etc/passwd` → rejected |
 | `test_archive_roundtrip` | Store → archive → unpack → same content |
-| `test_list_concepts_nonconformant` | Non-conformant bundle → still returns .md files (graceful fallback) |
-| `test_list_concepts_empty` | Empty bundle → [] |
-| `test_list_bundles` | Returns only bundles in given namespace |
-| `test_owner_file_written` | After publish, `.owner` matches namespace hash |
-| `test_public_namespace` | owner_hash="public" → stored in `public/` |
+| `test_owner_file_written` | `.owner` contains username |
+| `test_list_bundles` | Returns only bundles for the given username |
 
 ### `tests/server/test_api.py`
 
-Integration tests via `TestClient` against `create_app()` with a `tmp_path`-backed `FileStore`.
+Integration tests via FastAPI `TestClient`.
 
 | Test | What |
 |------|------|
-| `test_health` | GET / → 200, version fields |
-| `test_publish_no_token_401` | No token when server has token → 401 |
-| `test_publish_wrong_token_401` | Wrong token → 401 |
-| `test_publish_valid_201` | Correct token → 201, stored in token namespace, .owner written |
-| `test_publish_no_auth_disabled` | Server with empty token → 201, stored in `public/` |
-| `test_publish_same_name_different_tokens` | Two tokens publish same name → both succeed, isolated |
-| `test_publish_force_same_namespace` | Force-replace in same namespace → 201, content replaced |
-| `test_list_bundles_200` | GET /bundles → returns bundles in authenticated namespace |
-| `test_list_concepts_200` | GET /concepts → JSON array |
-| `test_get_concept_200` | GET /concept → raw markdown, correct Content-Type |
-| `test_get_concept_404` | Unknown ID → 404 |
-| `test_get_archive_200` | GET /archive → tar.gz, Content-Type |
-| `test_get_archive_404` | Unknown bundle → 404 |
-| `test_public_read_blocked` | `--public-read` false, no token on GET → 401 |
-| `test_public_read_allowed` | `--public-read` true, no token on GET → 200 (from `public/`) |
+| `test_health` | GET /api/v1/ returns versions |
+| `test_register` | POST /api/v1/auth/register creates user |
+| `test_login` | POST /api/v1/auth/login returns token |
+| `test_publish_valid_201` | Authenticated publish stores bundle |
+| `test_publish_no_auth_401` | Publish without token fails |
+| `test_publish_nonconformant_400` | Bad bundle rejected with details |
+| `test_publish_force` | Force replaces bundle |
+| `test_publish_same_name_different_users` | Two users publish same name; both succeed |
+| `test_list_my_bundles` | /api/v1/bundles returns authenticated user's bundles |
+| `test_catalog_lists_public_bundles` | /api/v1/catalog lists all bundles |
+| `test_user_bundles` | /{username} returns that user's bundles |
+| `test_bundle_landing` | /{username}/{bundle} returns root index.md |
+| `test_list_concepts` | /concepts returns JSON IDs |
+| `test_get_concept` | /concepts/{id} returns raw markdown |
+| `test_download_archive` | /archive returns tar.gz |
+| `test_invalid_slug_404` | Bad username/bundle names return 404 |
+
+### `tests/test_cli.py`
+
+| Test | What |
+|------|------|
+| `test_publish_invokes_api` | Exit code 0, uploads tar |
+| `test_clone_downloads_archive` | Exit code 0, directory created |
+| `test_list_remote` | `--remote` hits concepts endpoint |
+| `test_show_remote` | `--remote` hits concept endpoint |
+| `test_url_override` | `--url` changes target server |
 
 ---
 
-## Phase 2: Multi-user SaaS (future, not implemented now)
+## Implementation phases
 
-- Token-per-user or OAuth2 registration
-- Rate limiting
-- Multi-worker locking for concurrent publish race window
-
-## Phase 3: Client commands (future, not implemented now)
-
-After server is built and tested:
-
-- `okf publish <bundle-dir> --url <url> --token <token> [--force]` — validate locally, tar.gz, POST multipart
-- `okf clone <url> <local-dir> [--token <token>]` — GET /archive, stream-unpack
-- `okf list --remote <url> <bundle-name> [--token <token>]` — GET /concepts
-- `okf show --remote <url> <bundle-name> <concept-id> [--token <token>]` — GET /concepts/:id
-
-Client uses stdlib `urllib` + `tarfile` — no new dependencies.
+1. **Auth + user store** — SQLite schema, register/login, token lookup, tests.
+2. **Storage + publish** — `FileStore`, authenticated upload, conformance check,
+   force replace, tests.
+3. **Public read routes** — `/{username}`, `/{username}/{bundle}`, `/concepts`,
+   `/concepts/{id}`, `/archive`, `/api/v1/catalog`, tests.
+4. **Client commands** — `publish`, `clone`, `--remote` for `list`/`show`, CLI tests.
+5. **Future** — private bundles, token rotation, password reset, search,
+   HTML landing pages.
 
 ---
 
 ## Open questions resolved
 
-1. **Auth:** Bearer token only. `--token ""` disables auth. GET auth configurable via `--public-read`.
-2. **Namespace:** `sha256(token)[:16]` directory per user. Bundles unique per namespace.
-3. **Bundle name:** Slug regex `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`.
-4. **Storage:** `<store_root>/<namespace>/<bundle-name>/` directory trees. Default `~/.okf/store`, overridable.
-5. **Ownership:** `.owner` file for metadata. No 403 errors — namespace isolation prevents cross-user access.
-6. **Backups:** No. `?force=true` replaces in place in your namespace. YAGNI.
-7. **Multiple bundles:** Yes — one server, many bundles per namespace.
-8. **List bundles:** `GET /api/v1/bundles` returns bundles in authenticated namespace.
-9. **Healthcheck:** `GET /api/v1/` returns version info.
-10. **Storage seam:** `FileStore` class — route handlers never touch disk directly.
+1. **Landing page:** `/{username}/{bundle}` returns the root `index.md` as
+   `text/markdown`.
+2. **Visibility:** All bundles are public by default; private bundles are a
+   future add-on.
+3. **Auth:** SQLite-backed registration, login, and bearer-token API access.
+4. **Default domain:** CLI defaults to a configurable `DEFAULT_SERVER_URL`;
+   `--url` and `OKF_URL` override it.
