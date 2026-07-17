@@ -5,3 +5,4 @@ __pycache__/
 bundled/
 dist/
 *.egg-info/
+*_knowledge_base/
