@@ -9,8 +9,7 @@ from urllib.parse import urlencode
 
 import typer
 
-from okf.remote import http_post, server_url, tar_directory
-from okf.server._common import validate_slug
+from okf.remote import http_post, server_url, tar_directory, validate_slug
 
 
 def publish(

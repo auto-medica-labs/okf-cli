@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tarfile
 import tempfile
 import urllib.error
@@ -11,6 +12,14 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 DEFAULT_SERVER_URL = "https://okf.com"
+
+SLUG_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
+
+
+def validate_slug(value: str) -> None:
+    """Raise ValueError if value is not a valid OKF slug."""
+    if not value or not SLUG_RE.match(value):
+        raise ValueError(f"invalid slug: {value!r}")
 
 
 def server_url(url: str | None) -> str:
