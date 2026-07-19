@@ -32,7 +32,7 @@ Important behavior:
 - `--strict` enforces strict OKF spec output: fails on broken local `.md` links and skips `AGENTS.md` generation.
 - `AGENTS.md` is generated at output root with navigation guidance (unless `--strict` is used).
 
-Source: `src/okf/commands/bundle.py`.
+Source: `src/okf/api.py`.
 
 ### 3) Validate output
 

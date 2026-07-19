@@ -8,6 +8,8 @@
   - `TestShowConcept` — reading via `api.show_concept()`, path traversal guard
   - `TestValidate` — conformance checks via `api.validate()`, all §9 rule variants
   - `TestWorkflow` — cross-command pipeline (bundle → validate/list/show)
+  - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime timestamp
+  - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no timestamp
 - Core unit tests: `tests/test_core.py`
   - parsing helpers (`parse_md`, `parse_frontmatter`)
   - frontmatter generation (`build_frontmatter`)

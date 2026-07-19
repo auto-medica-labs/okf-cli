@@ -79,7 +79,7 @@ Source: `src/okf/core.py`.
 - `--strict`: turns warnings into fatal exit and skips `AGENTS.md` generation.
 - Generated `index.md` files count as valid link targets.
 
-Source: `src/okf/commands/bundle.py`.
+Source: `src/okf/api.py` (`_iter_links`, `_resolve_md_target`).
 
 ## `.okfignore` model (bundle-only)
 
@@ -89,7 +89,7 @@ Source: `src/okf/commands/bundle.py`.
 - no glob/negation semantics
 - non-UTF-8 `.okfignore` fails bundling
 
-Source: `_load_okfignore` in `src/okf/commands/bundle.py`; example file: `example/.okfignore`.
+Source: `_load_okfignore` in `src/okf/api.py`; example file: `example/.okfignore`.
 
 ## Bundle output artifacts
 
@@ -99,7 +99,7 @@ Each bundle run produces:
 - `index.md` per directory listing contents and subdirs
 - `AGENTS.md` at output root: navigation guide for AI agents and humans (references `index.md`, explains frontmatter and cross-links); omitted in `--strict` mode
 
-Source: `src/okf/commands/bundle.py`.
+Source: `src/okf/api.py` (`_write_concept`, `_generate_indexes`, `bundle`).
 
 ## Conformance rules enforced
 
@@ -114,4 +114,4 @@ Source: `src/okf/commands/bundle.py`.
    - `log.md` must not have frontmatter;
 1. markdown files must be UTF-8.
 
-Source: `src/okf/core.py`; behavior validated by `tests/test_core.py` and `tests/cli/test_validate.py`.
+Source: `src/okf/core.py`; behavior validated by `tests/test_api.py` (`TestValidate`) and `tests/test_cli.py`.
