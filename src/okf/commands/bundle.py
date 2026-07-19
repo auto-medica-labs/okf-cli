@@ -39,22 +39,25 @@ def bundle(
             strict=strict,
         )
     except FileNotFoundError as e:
-        typer.echo(f"Error: {e}", err=True)
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     except FileExistsError as e:
-        typer.echo(f"Error: {e}", err=True)
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     except ValueError as e:
-        typer.echo(f"Error: {e}", err=True)
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
     for w in result.warnings:
-        typer.echo(f"Warning: {w}", err=True)
+        typer.secho(f"Warning: {w}", fg=typer.colors.YELLOW, err=True)
     for e in result.errors:
-        typer.echo(f"Error: {e}", err=True)
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
 
     if result.errors:
         raise typer.Exit(code=1)
 
     n = result.files_written
-    typer.echo(f"Done. Converted {n} file{'s' if n != 1 else ''} → {result.output_dir}")
+    typer.secho(
+        f"Done. Converted {n} file{'s' if n != 1 else ''} → {result.output_dir}",
+        fg=typer.colors.GREEN,
+    )

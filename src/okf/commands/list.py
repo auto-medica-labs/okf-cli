@@ -12,12 +12,12 @@ def cmd_list(
     try:
         cids = api.list_concepts(directory)
     except (ValueError, NotADirectoryError) as e:
-        typer.echo(f"Error: {e}", err=True)
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
     if not cids:
-        typer.echo("No concepts found", err=True)
+        typer.secho("No concepts found", fg=typer.colors.YELLOW, err=True)
         raise typer.Exit(code=1)
 
     for cid in cids:
-        typer.echo(cid)
+        typer.secho(cid, fg=typer.colors.CYAN)
