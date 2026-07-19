@@ -48,7 +48,7 @@ Source: `src/okf/commands/validate.py`, `src/okf/core.py`.
 
 ```bash
 uv run okf list <output-dir>
-uv run okf show <output-dir> <concept-id>
+uv run okf read <output-dir> <concept-id>
 ```
 
 `list` returns concept IDs; `show` prints full concept markdown.

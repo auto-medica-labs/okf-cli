@@ -59,10 +59,10 @@ okf list example_knowledge_base/
 # tables/orders
 ```
 
-### `okf show` — read a concept by ID
+### `okf read` — read a concept by ID
 
 ```
-okf show <directory> <concept-id>
+okf read <directory> <concept-id>
 ```
 
 Prints full concept contents (frontmatter + body). Concept IDs as printed by `okf list`. Guards against path traversal.
@@ -98,7 +98,7 @@ Files without strict format are bundled best-effort: title omitted if absent, de
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Folder name = concept type                            | `tables/orders.md` → `type: "tables"`                                                            |
 | Only `.md` files processed                            | Non-`.md` files ignored                                                                          |
-| `index.md`, `log.md`, `README.md` skipped in `bundle` | Repo artifacts; not OKF concepts. `list`/`show`/`validate` only reserve `index.md` and `log.md`. |
+| `index.md`, `log.md`, `README.md` skipped in `bundle` | Repo artifacts; not OKF concepts. `list`/`read`/`validate` only reserve `index.md` and `log.md`. |
 | `.okfignore` entries skipped                          | Skip selected files without moving them.                                                         |
 
 Root files use `--default-type`, defaulting to the input directory name. See [`example/`](example/) for sample structure.
@@ -140,7 +140,7 @@ okf-cli
 │   ├── cli.py                  # Typer entrypoint
 │   ├── api.py                  # Programmatic Python API
 │   ├── core.py                 # Shared parsing/formatting
-│   └── commands/               # bundle, list, show, validate
+│   └── commands/               # bundle, list, read, validate
 ├── tests/                      # pytest suite
 └── example/                    # Sample input markdown
 ```

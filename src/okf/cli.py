@@ -6,7 +6,7 @@ import typer
 
 from okf.commands.bundle import bundle
 from okf.commands.list import cmd_list
-from okf.commands.show import cmd_show
+from okf.commands.read import cmd_read
 from okf.commands.validate import validate
 from okf.core import console
 
@@ -38,7 +38,7 @@ def main(
 
 app.command()(bundle)
 app.command("list")(cmd_list)
-app.command("show")(cmd_show)
+app.command("read")(cmd_read)
 app.command("validate")(validate)
 
 

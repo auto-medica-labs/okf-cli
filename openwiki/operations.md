@@ -55,6 +55,6 @@ When changing command behavior, update sample docs/output only if behavior chang
 
 ## Release-facing notes
 
-Recent history shows production hardening and feature additions were shipped via small incremental commits (validate/list/show, YAML conformance gate, lenient parsing, `.okfignore`).
+Recent history shows production hardening and feature additions were shipped via small incremental commits (validate/list/read, YAML conformance gate, lenient parsing, `.okfignore`).
 
 Operational takeaway: keep releases narrow and test-backed; avoid large unverified refactors.

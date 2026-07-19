@@ -59,7 +59,7 @@ Each file imports from `okf.api` and calls the corresponding function, translati
 1. Call `check_conformance` once.
 1. Return `ValidateResult` with file count, errors, and warnings.
 
-### `okf list` and `okf show` (via `api.list_concepts()` / `api.show_concept()`)
+### `okf list` and `okf read` (via `api.list_concepts()` / `api.show_concept()`)
 
 Both functions first run `check_conformance`. If directory is non-conformant, they raise `ValueError`.
 

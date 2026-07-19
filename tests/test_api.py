@@ -895,7 +895,7 @@ class TestWorkflow:
         assert "tables/orders" in cids
         assert "tables/customers" in cids
 
-    def test_bundle_then_show(self, tmp_path: Path):
+    def test_bundle_then_read(self, tmp_path: Path):
         src = tmp_path / "src"
         dst = tmp_path / "out"
         src.mkdir()

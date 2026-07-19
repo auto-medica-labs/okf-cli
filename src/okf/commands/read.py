@@ -1,4 +1,4 @@
-"""okf show command."""
+"""okf read command."""
 
 import typer
 
@@ -6,7 +6,7 @@ from okf import api
 from okf.core import console, err_console
 
 
-def cmd_show(
+def cmd_read(
     directory: str = typer.Argument(..., help="Directory of the OKF bundle"),
     concept_id: str = typer.Argument(
         ..., help="Concept ID to read (e.g. tables/orders)"

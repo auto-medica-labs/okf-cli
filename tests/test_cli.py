@@ -153,44 +153,44 @@ def test_list_empty_shows_message(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# show — exit codes & error messages
+# read — exit codes & error messages
 # ---------------------------------------------------------------------------
 
 
-def test_show_not_found_shows_path(tmp_path: Path):
+def test_read_not_found_shows_path(tmp_path: Path):
     d = tmp_path / "bundle"
     d.mkdir()
     _write(d, {"tables/orders.md": "---\ntype: tables\n---\n\nBody."})
 
-    result = runner.invoke(app, ["show", str(d), "tables/customers"])
+    result = runner.invoke(app, ["read", str(d), "tables/customers"])
     assert result.exit_code == 1
     assert "not found" in result.output
 
 
-def test_show_reserved_shows_error(tmp_path: Path):
+def test_read_reserved_shows_error(tmp_path: Path):
     d = tmp_path / "bundle"
     d.mkdir()
     _write(d, {"index.md": "# Contents"})
 
-    result = runner.invoke(app, ["show", str(d), "index"])
+    result = runner.invoke(app, ["read", str(d), "index"])
     assert result.exit_code == 1
     assert "reserved filename" in result.output
 
 
-def test_show_traversal_shows_error(tmp_path: Path):
+def test_read_traversal_shows_error(tmp_path: Path):
     d = tmp_path / "bundle"
     d.mkdir()
 
-    result = runner.invoke(app, ["show", str(d), "../../../etc/passwd"])
+    result = runner.invoke(app, ["read", str(d), "../../../etc/passwd"])
     assert result.exit_code == 1
     assert "outside the bundle directory" in result.output
 
 
-def test_show_non_conformant_shows_message(tmp_path: Path):
+def test_read_non_conformant_shows_message(tmp_path: Path):
     d = tmp_path / "raw"
     d.mkdir()
     _write(d, {"notes.md": "# Notes\n\n> Notes.\n\nBody."})
 
-    result = runner.invoke(app, ["show", str(d), "notes"])
+    result = runner.invoke(app, ["read", str(d), "notes"])
     assert result.exit_code == 1
     assert "not an OKF-conformant bundle" in result.output
