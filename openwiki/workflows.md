@@ -19,7 +19,7 @@ Lenient fallback exists for imperfect files, but strict shape gives better metad
 ### 2) Bundle to OKF
 
 ```bash
-uv run okf bundle <input-dir> [output-dir] [--default-type <type>] [--force] [--strict-links]
+uv run okf bundle <input-dir> [output-dir] [--default-type <type>] [--force] [--strict]
 # output-dir defaults to <input-dir>_knowledge_base
 # --default-type defaults to input directory name
 ```
@@ -29,8 +29,8 @@ Important behavior:
 - Root-level markdown uses input directory name as type if `--default-type` not specified.
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
 - `.okfignore` in input root can skip exact bundle-relative paths.
-- `--strict-links` fails if any local `.md` link is missing or points outside bundle.
-- `AGENTS.md` is generated at output root with navigation guidance.
+- `--strict` enforces strict OKF spec output: fails on broken local `.md` links and skips `AGENTS.md` generation.
+- `AGENTS.md` is generated at output root with navigation guidance (unless `--strict` is used).
 
 Source: `src/okf/commands/bundle.py`.
 

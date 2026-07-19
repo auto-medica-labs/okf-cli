@@ -334,7 +334,7 @@ class TestBundle:
 
         assert any("points outside bundle" in w for w in result.warnings)
 
-    def test_strict_links_fails(self, tmp_path: Path):
+    def test_strict_fails(self, tmp_path: Path):
         src = tmp_path / "src"
         dst = tmp_path / "out"
         src.mkdir()
@@ -343,12 +343,12 @@ class TestBundle:
             {"tables/orders.md": "# Orders\n\n> One row.\n\nSee [C](customers.md)."},
         )
 
-        result = bundle(src, dst, strict_links=True)
+        result = bundle(src, dst, strict=True)
 
         assert result.files_written == 0
         assert any("strict link check failed" in e.lower() for e in result.errors)
 
-    def test_strict_links_passes(self, tmp_path: Path):
+    def test_strict_passes(self, tmp_path: Path):
         src = tmp_path / "src"
         dst = tmp_path / "out"
         src.mkdir()
@@ -362,10 +362,11 @@ class TestBundle:
             },
         )
 
-        result = bundle(src, dst, strict_links=True)
+        result = bundle(src, dst, strict=True)
 
         assert result.files_written == 2
         assert result.errors == []
+        assert not (dst / "AGENTS.md").exists()
 
     def test_agents_md(self, tmp_path: Path):
         src = tmp_path / "src"

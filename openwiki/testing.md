@@ -14,7 +14,7 @@
   - conformance engine (`check_conformance`)
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
-  - Typer-specific behavior (argument parsing, `--force`, `--strict-links`)
+  - Typer-specific behavior (argument parsing, `--force`, `--strict`)
 
 ## Run tests
 
@@ -70,6 +70,6 @@ uv run pytest -q
 - Root `index.md` special allowance for `okf_version` only.
 - `list`/`show` hard failure on non-conformant bundles.
 - `show` path traversal guard.
-- Link checking: `_resolve_md_target` path resolution, `--strict-links` fatal mode, missing/out-of-bundle targets.
+- Link checking: `_resolve_md_target` path resolution, `--strict` fatal mode, missing/out-of-bundle targets.
 
 Primary evidence: `tests/test_api.py`, `tests/test_core.py`, `tests/test_cli.py`.

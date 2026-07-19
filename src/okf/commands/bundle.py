@@ -1,7 +1,5 @@
 """okf bundle command."""
 
-from pathlib import Path
-
 import typer
 
 from okf import api
@@ -22,10 +20,13 @@ def bundle(
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite output directory if it exists"
     ),
-    strict_links: bool = typer.Option(
+    strict: bool = typer.Option(
         False,
-        "--strict-links",
-        help="Fail when local markdown links point outside bundle or missing targets",
+        "--strict",
+        help=(
+            "Enforce strict OKF spec output: fail on broken local .md links "
+            "and skip AGENTS.md generation"
+        ),
     ),
 ) -> None:
     """Convert plain markdown into an OKF-conformant knowledge bundle."""
@@ -35,7 +36,7 @@ def bundle(
             output_dir,
             default_type=default_type,
             force=force,
-            strict_links=strict_links,
+            strict=strict,
         )
     except FileNotFoundError as e:
         typer.echo(f"Error: {e}", err=True)

@@ -22,7 +22,7 @@ uv run okf --help
 ### `okf bundle` — convert plain markdown to OKF bundle
 
 ```
-okf bundle <input-dir> [output-dir] [--default-type <name>] [--force] [--strict-links]
+okf bundle <input-dir> [output-dir] [--default-type <name>] [--force] [--strict]
 ```
 
 | Argument         | Description                                                                  |
@@ -31,16 +31,16 @@ okf bundle <input-dir> [output-dir] [--default-type <name>] [--force] [--strict-
 | `output-dir`     | Target directory (default: `bundled`)                                        |
 | `--default-type` | Type for root-level files (skip root files if omitted)                       |
 | `--force`, `-f`  | Overwrite output directory if it exists                                      |
-| `--strict-links` | Fail if local markdown links point outside bundle or to missing `.md` target |
+| `--strict` | Enforce strict OKF spec output: fail on broken local `.md` links and skip `AGENTS.md` generation |
 
 ```bash
 okf bundle example --default-type reference  # → bundled/
-okf bundle example --default-type reference --force --strict-links
+okf bundle example --default-type reference --force --strict
 ```
 
 **`.okfignore`**: put in `input-dir` root; one bundle-relative `.md` path per line. Exact match only (no glob).
 
-**Link checking**: scans body links to local `.md` targets. Missing or out-of-bundle links warn by default, fail with `--strict-links`.
+**Link checking**: scans body links to local `.md` targets. Missing or out-of-bundle links warn by default, fail with `--strict`.
 
 ### `okf list` — list concept IDs in a bundle
 

@@ -70,7 +70,7 @@ def test_bundle_force_shows_removed(tmp_path: Path):
     assert "Removed existing" in result.output
 
 
-def test_bundle_strict_links_shows_error(tmp_path: Path):
+def test_bundle_strict_shows_error(tmp_path: Path):
     src = tmp_path / "src"
     dst = tmp_path / "out"
     src.mkdir()
@@ -81,9 +81,10 @@ def test_bundle_strict_links_shows_error(tmp_path: Path):
         },
     )
 
-    result = runner.invoke(app, ["bundle", str(src), str(dst), "--strict-links"])
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--strict"])
     assert result.exit_code == 1
     assert "strict link check failed" in result.output
+    assert not (dst / "AGENTS.md").exists()
 
 
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ uv run okf bundle example --default-type reference --force
 uv run okf validate example_knowledge_base
 uv run okf list example_knowledge_base
 uv run okf show example_knowledge_base tables/customers
-uv run okf bundle example --default-type reference --force --strict-links
+uv run okf bundle example --default-type reference --force --strict
 ```
 
 ### Python API
@@ -50,7 +50,7 @@ Why this sequence:
 1. `bundle` transforms raw markdown into OKF structure.
 1. `validate` checks OKF conformance gate used by readers.
 1. `list`/`show` operate only on conformant bundles.
-1. `--strict-links` catches broken local `.md` references at bundle time.
+1. `--strict` catches broken local `.md` references at bundle time and skips `AGENTS.md` generation.
 
 ## OpenWiki map
 

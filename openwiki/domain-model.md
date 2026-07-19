@@ -76,7 +76,7 @@ Source: `src/okf/core.py`.
 - `_resolve_md_target(current_rel, raw_target)` resolves to a bundle-relative POSIX path.
 - Ignored: external URLs (`https:`, `mailto:`), fragment-only links (`#section`), directory links, non-`.md` targets.
 - Default mode: warnings for missing targets or targets resolving outside bundle.
-- `--strict-links`: turns warnings into fatal exit.
+- `--strict`: turns warnings into fatal exit and skips `AGENTS.md` generation.
 - Generated `index.md` files count as valid link targets.
 
 Source: `src/okf/commands/bundle.py`.
@@ -97,7 +97,7 @@ Each bundle run produces:
 
 - concept `.md` files with YAML frontmatter
 - `index.md` per directory listing contents and subdirs
-- `AGENTS.md` at output root: navigation guide for AI agents and humans (references `index.md`, explains frontmatter and cross-links)
+- `AGENTS.md` at output root: navigation guide for AI agents and humans (references `index.md`, explains frontmatter and cross-links); omitted in `--strict` mode
 
 Source: `src/okf/commands/bundle.py`.
 

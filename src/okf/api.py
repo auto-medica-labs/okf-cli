@@ -264,7 +264,7 @@ def bundle(
     *,
     default_type: str | None = None,
     force: bool = False,
-    strict_links: bool = False,
+    strict: bool = False,
 ) -> BundleResult:
     """Convert plain markdown into an OKF-conformant knowledge bundle.
 
@@ -273,8 +273,8 @@ def bundle(
         output_dir: Target directory. Defaults to ``<input-dir>_knowledge_base``.
         default_type: Concept type for root-level files.
         force: Overwrite output directory if it exists.
-        strict_links: Fail when local markdown links point outside bundle
-            or reference missing targets.
+        strict: Enforce strict OKF spec output: fail on broken local .md
+            links and skip AGENTS.md generation.
 
     Returns:
         BundleResult with counts, warnings, and errors.
@@ -362,7 +362,7 @@ def bundle(
 
     warnings.extend(link_issues)
 
-    if strict_links and link_issues:
+    if strict and link_issues:
         errors.append("strict link check failed")
         return BundleResult(0, dst, warnings, errors)
 
@@ -394,30 +394,31 @@ def bundle(
 
     _generate_indexes(processed, dst)
 
-    # Write AGENTS.md
-    (dst / "AGENTS.md").write_text(
-        f"# Knowledge Base: {dst.name}\n\n"
-        f"You are in an OKF (Open Knowledge Format) knowledge base called "
-        f"**{dst.name}**. OKF is a structured markdown format where each "
-        f"`.md` file is a concept with YAML frontmatter (`type`, `title`, "
-        f"`description`) and cross-links between related concepts.\n\n"
-        "## Instructions\n\n"
-        "- **Answer from this knowledge base only.** Use the concepts and "
-        "links here as your source of truth.\n"
-        "- **If the answer is not in the knowledge base, say so directly.** "
-        "Do not fabricate, guess, or pull from external knowledge.\n\n"
-        "## Getting Started\n\n"
-        "Read [index.md](index.md) first — it lists all concepts "
-        "and subdirectories.\n\n"
-        "## Navigation\n\n"
-        "- Follow markdown links between concepts.\n"
-        "- Each `.md` file has YAML frontmatter with `type`, `title`, "
-        "`description`.\n"
-        "- Subdirectories group related concepts by topic.\n"
-        "- Cross-links (e.g. `[Customers](/tables/customers.md)`) "
-        "express relationships.\n",
-        encoding="utf-8",
-    )
+    # Write AGENTS.md (skipped in strict mode)
+    if not strict:
+        (dst / "AGENTS.md").write_text(
+            f"# Knowledge Base: {dst.name}\n\n"
+            f"You are in an OKF (Open Knowledge Format) knowledge base called "
+            f"**{dst.name}**. OKF is a structured markdown format where each "
+            f"`.md` file is a concept with YAML frontmatter (`type`, `title`, "
+            f"`description`) and cross-links between related concepts.\n\n"
+            "## Instructions\n\n"
+            "- **Answer from this knowledge base only.** Use the concepts and "
+            "links here as your source of truth.\n"
+            "- **If the answer is not in the knowledge base, say so directly.** "
+            "Do not fabricate, guess, or pull from external knowledge.\n\n"
+            "## Getting Started\n\n"
+            "Read [index.md](index.md) first — it lists all concepts "
+            "and subdirectories.\n\n"
+            "## Navigation\n\n"
+            "- Follow markdown links between concepts.\n"
+            "- Each `.md` file has YAML frontmatter with `type`, `title`, "
+            "`description`.\n"
+            "- Subdirectories group related concepts by topic.\n"
+            "- Cross-links (e.g. `[Customers](/tables/customers.md)`) "
+            "express relationships.\n",
+            encoding="utf-8",
+        )
 
     return BundleResult(
         files_written=len(processed),
