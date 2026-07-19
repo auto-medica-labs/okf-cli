@@ -13,6 +13,7 @@ from okf.api import (
     convert_content,
     convert_file,
     list_concepts,
+    list_entries,
     show_concept,
     validate,
 )
@@ -559,6 +560,114 @@ class TestListConcepts:
     def test_not_a_dir(self, tmp_path: Path):
         with pytest.raises(NotADirectoryError):
             list_concepts(tmp_path / "nope")
+
+
+# ---------------------------------------------------------------------------
+# list_entries()
+# ---------------------------------------------------------------------------
+
+
+class TestListEntries:
+    def test_lists_with_metadata(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": "# Orders\n\n> Customer orders.\n\nBody.",
+                "datasets/sales.md": "# Sales\n\n> Sales dataset.\n\nBody.",
+            },
+        )
+        bundle(src, dst)
+
+        entries = list_entries(dst)
+
+        assert isinstance(entries, list)
+        assert all(isinstance(e, dict) for e in entries)
+        assert all(k in e for e in entries for k in ("id", "type", "title", "description"))
+        assert {"tables/orders", "datasets/sales"} == {e["id"] for e in entries}
+
+    def test_entries_have_types(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/a.md": "# A\n\n> Desc.\n\nBody.",
+                "playbooks/b.md": "# B\n\n> Playbook.\n\nBody.",
+            },
+        )
+        bundle(src, dst)
+
+        entries = list_entries(dst)
+        by_id = {e["id"]: e for e in entries}
+
+        assert by_id["tables/a"]["type"] == "tables"
+        assert by_id["playbooks/b"]["type"] == "playbooks"
+
+    def test_missing_title_shows_empty(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/bad.md": "No heading.\n> Desc.\n"})
+        bundle(src, dst)
+
+        entries = list_entries(dst)
+        assert entries[0]["title"] == ""
+
+    def test_missing_description_shows_empty(self, tmp_path: Path):
+        # Construct a bundle manually so description is truly absent.
+        d = tmp_path / "bundle"
+        d.mkdir()
+        (d / "tables").mkdir()
+        (d / "tables" / "minimal.md").write_text(
+            "---\ntype: tables\ntitle: Minimal\n---\n\nJust body."
+        )
+
+        entries = list_entries(d)
+        assert entries[0]["description"] == ""
+
+    def test_excludes_reserved(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+        bundle(src, dst)
+
+        entries = list_entries(dst)
+        ids = {e["id"] for e in entries}
+        assert "index" not in ids
+
+    def test_sorted_order(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": "# Orders\n\n> One row.\n",
+                "playbooks/incident.md": "# Incident\n\n> Playbook.\n",
+            },
+        )
+        bundle(src, dst)
+
+        entries = list_entries(dst)
+        ids = [e["id"] for e in entries]
+        assert ids == sorted(ids)
+
+    def test_not_conformant(self, tmp_path: Path):
+        d = tmp_path / "raw"
+        d.mkdir()
+        _write(d, {"plain.md": "# Title\n\n> Desc.\n\nBody."})
+
+        with pytest.raises(ValueError, match="not an OKF-conformant"):
+            list_entries(d)
+
+    def test_not_a_dir(self, tmp_path: Path):
+        with pytest.raises(NotADirectoryError):
+            list_entries(tmp_path / "nope")
 
 
 # ---------------------------------------------------------------------------
