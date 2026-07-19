@@ -495,7 +495,7 @@ def show_concept(bundle_dir: str | Path, concept_id: str) -> ConceptContent:
 
     if not concept_path.is_file():
         raise FileNotFoundError(
-            f"Concept '{concept_id}' not found (tried {concept_path})"
+            f"Concept '{concept_id}' not found"
         )
 
     raw = concept_path.read_text(encoding="utf-8")
