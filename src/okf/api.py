@@ -460,6 +460,46 @@ def list_concepts(bundle_dir: str | Path) -> list[str]:
     return cids
 
 
+def list_entries(bundle_dir: str | Path) -> list[dict[str, str]]:
+    """List all concepts with their frontmatter metadata.
+
+    Args:
+        bundle_dir: Path to an OKF bundle directory.
+
+    Returns:
+        Sorted list of dicts with keys ``id``, ``type``, ``title``,
+        ``description``.  ``title`` and ``description`` are empty strings
+        when absent from frontmatter.
+
+    Raises:
+        ValueError: If the directory is not a valid OKF bundle.
+    """
+    dir_path = Path(bundle_dir)
+
+    if not dir_path.is_dir():
+        raise NotADirectoryError(f"'{dir_path}' is not a directory")
+
+    errors, _warnings = check_conformance(dir_path)
+    if errors:
+        raise ValueError("not an OKF-conformant bundle:\n" + "\n".join(errors))
+
+    entries: list[dict[str, str]] = []
+    for f in sorted(dir_path.rglob("*.md")):
+        if f.name.lower() in SPEC_RESERVED:
+            continue
+        rel = f.relative_to(dir_path)
+        cid = str(rel.parent / rel.stem) if rel.parent != Path(".") else rel.stem
+        fm = parse_frontmatter(f.read_text(encoding="utf-8")) or {}
+        entries.append({
+            "id": cid,
+            "type": str(fm.get("type", "")),
+            "title": str(fm.get("title", "")),
+            "description": str(fm.get("description", "")),
+        })
+
+    return entries
+
+
 def show_concept(bundle_dir: str | Path, concept_id: str) -> ConceptContent:
     """Read a concept by its ID from an OKF bundle.
 
