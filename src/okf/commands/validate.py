@@ -3,6 +3,7 @@
 import typer
 
 from okf import api
+from okf.core import console, err_console
 
 
 def validate(
@@ -12,13 +13,13 @@ def validate(
     try:
         result = api.validate(directory)
     except NotADirectoryError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
 
     for w in result.warnings:
-        typer.secho(f"Warning: {w}", fg=typer.colors.YELLOW, err=True)
+        err_console.print(f"Warning: {w}", style="yellow")
     for e in result.errors:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
 
     ok = result.total_files - len(result.errors)
     parts = [f"{result.total_files} files: {ok} ok"]
@@ -26,8 +27,8 @@ def validate(
         parts.append(f"{len(result.errors)} errors")
     if result.warnings:
         parts.append(f"{len(result.warnings)} warnings")
-    summary_color = typer.colors.GREEN if not result.errors else typer.colors.RED
-    typer.secho("\n" + ", ".join(parts), fg=summary_color)
+    summary_color = "green" if not result.errors else "red"
+    console.print("\n" + ", ".join(parts), style=summary_color)
 
     if result.errors:
         raise typer.Exit(code=1)

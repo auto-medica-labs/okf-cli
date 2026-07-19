@@ -3,6 +3,7 @@
 import typer
 
 from okf import api
+from okf.core import console, err_console
 
 
 def bundle(
@@ -39,25 +40,25 @@ def bundle(
             strict=strict,
         )
     except FileNotFoundError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
     except FileExistsError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
     except ValueError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
 
     for w in result.warnings:
-        typer.secho(f"Warning: {w}", fg=typer.colors.YELLOW, err=True)
+        err_console.print(f"Warning: {w}", style="yellow")
     for e in result.errors:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
 
     if result.errors:
         raise typer.Exit(code=1)
 
     n = result.files_written
-    typer.secho(
+    console.print(
         f"Done. Converted {n} file{'s' if n != 1 else ''} → {result.output_dir}",
-        fg=typer.colors.GREEN,
+        style="green",
     )

@@ -8,6 +8,7 @@ from okf.commands.bundle import bundle
 from okf.commands.list import cmd_list
 from okf.commands.show import cmd_show
 from okf.commands.validate import validate
+from okf.core import console
 
 app = typer.Typer(
     name="okf",
@@ -18,7 +19,7 @@ app = typer.Typer(
 
 def _version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"okf {_version('okf-cli')}")
+        console.print(f"okf {_version('okf-cli')}")
         raise typer.Exit()
 
 

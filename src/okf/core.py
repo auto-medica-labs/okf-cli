@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from rich.console import Console
+
+console = Console()
+err_console = Console(stderr=True)
 
 RESERVED = frozenset({"index.md", "log.md", "readme.md"})
 SPEC_RESERVED = frozenset({"index.md", "log.md", "agents.md"})

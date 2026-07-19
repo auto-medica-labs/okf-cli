@@ -56,6 +56,7 @@ version = "0.4.8"
 source = { editable = "." }
 dependencies = [
     { name = "pyyaml" },
+    { name = "rich" },
     { name = "typer" },
 ]
 
@@ -68,6 +69,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "pyyaml", specifier = ">=6" },
+    { name = "rich", specifier = ">=15.0.0" },
     { name = "typer", specifier = ">=0.15" },
 ]
 

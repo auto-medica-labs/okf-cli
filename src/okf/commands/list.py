@@ -3,6 +3,7 @@
 import typer
 
 from okf import api
+from okf.core import console, err_console
 
 
 def cmd_list(
@@ -12,12 +13,12 @@ def cmd_list(
     try:
         cids = api.list_concepts(directory)
     except (ValueError, NotADirectoryError) as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
 
     if not cids:
-        typer.secho("No concepts found", fg=typer.colors.YELLOW, err=True)
+        err_console.print("No concepts found", style="yellow")
         raise typer.Exit(code=1)
 
     for cid in cids:
-        typer.secho(cid, fg=typer.colors.CYAN)
+        console.print(cid, style="cyan")

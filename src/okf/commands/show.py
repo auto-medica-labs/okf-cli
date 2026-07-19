@@ -3,6 +3,7 @@
 import typer
 
 from okf import api
+from okf.core import console, err_console
 
 
 def cmd_show(
@@ -15,15 +16,14 @@ def cmd_show(
     try:
         result = api.show_concept(directory, concept_id)
     except FileNotFoundError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        typer.secho(
+        err_console.print(f"Error: {e}", style="red")
+        err_console.print(
             f"Run `okf list {directory}` to see available concept IDs.",
-            fg=typer.colors.YELLOW,
-            err=True,
+            style="yellow",
         )
         raise typer.Exit(code=1)
     except (ValueError, NotADirectoryError) as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        err_console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
 
-    typer.echo(result.raw, nl=False)
+    console.print(result.raw, end="", markup=False, highlight=False)
