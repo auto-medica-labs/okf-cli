@@ -9,7 +9,7 @@
 - **Core layer** (`src/okf/core.py`) — shared parsing, formatting, conformance helpers.
 - **Command wrappers** (`src/okf/commands/`) — thin IO/error bridges from CLI args to API calls.
 
-Why this split: the API layer is the canonical home for all logic. Commands handle only Typer argument parsing, error display, and exit codes. `core.py` is pure utility with no side effects.
+Why this split: the API layer is the canonical home for all logic. Commands handle only Typer argument parsing, error display, and exit codes. `core.py` holds pure parsing / formatting / conformance logic, but also instantiates shared rich `Console` singletons at import for output (used by `cli.py` and `commands/*`).
 
 ## Key modules
 
