@@ -26,4 +26,7 @@ def cmd_read(
         err_console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
 
-    console.print(result.raw, end="", markup=False, highlight=False)
+    raw = result.raw
+    if not raw.endswith("\n"):
+        raw += "\n"
+    console.print(raw, end="", markup=False, highlight=False)
