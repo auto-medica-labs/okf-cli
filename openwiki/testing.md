@@ -15,6 +15,11 @@
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
   - Typer-specific behavior (argument parsing, `--force`, `--strict`)
+  - remote command mocking for `publish`, `clone`, `list --remote`, `show --remote`
+- Server tests: `tests/server/`
+  - `test_auth.py` — `UserStore` register/login, token lookup, reserved/invalid usernames
+  - `test_server_api.py` — FastAPI route integration tests via `TestClient`
+  - `test_storage.py` — `FileStore` conformance gating, namespace isolation, archive roundtrip
 
 ## Run tests
 
@@ -62,6 +67,26 @@ Run full suite:
 uv run pytest -q
 ```
 
+### If editing remote client (`src/okf/remote.py`)
+
+Run:
+
+```bash
+uv run pytest -q tests/test_cli.py tests/server/test_server_api.py
+```
+
+Reason: remote helpers are exercised through mocked CLI tests and real server integration tests.
+
+### If editing server code (`src/okf/server/`)
+
+Run:
+
+```bash
+uv run pytest -q tests/server/
+```
+
+Reason: auth, storage, and route tests cover the server subsystem in isolation.
+
 ## Behaviors with dedicated regression coverage
 
 - `.okfignore` parsing and skip semantics, including non-UTF-8 failure.
@@ -71,5 +96,7 @@ uv run pytest -q
 - `list`/`show` hard failure on non-conformant bundles.
 - `show` path traversal guard.
 - Link checking: `_resolve_md_target` path resolution, `--strict` fatal mode, missing/out-of-bundle targets.
+- Remote `publish`/`clone` tar packing and unwrapping.
+- Server slug validation, reserved usernames, conformance gating on publish, namespace isolation, and archive download.
 
-Primary evidence: `tests/test_api.py`, `tests/test_core.py`, `tests/test_cli.py`.
+Primary evidence: `tests/test_api.py`, `tests/test_core.py`, `tests/test_cli.py`, `tests/server/test_auth.py`, `tests/server/test_server_api.py`, `tests/server/test_storage.py`.
