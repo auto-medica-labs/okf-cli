@@ -5,7 +5,7 @@
 - CLI entrypoint: `src/okf/cli.py`
 - Programmatic Python API: `src/okf/api.py`
 - Shared parsing/conformance logic: `src/okf/core.py`
-- Commands (thin wrappers): `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/show.py`
+- Commands (thin wrappers): `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/read.py`
 
 ## Start in 5 minutes
 
