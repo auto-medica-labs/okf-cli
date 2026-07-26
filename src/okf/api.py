@@ -265,6 +265,7 @@ def bundle(
     default_type: str | None = None,
     force: bool = False,
     strict: bool = False,
+    dry_run: bool = False,
 ) -> BundleResult:
     """Convert plain markdown into an OKF-conformant knowledge bundle.
 
@@ -275,6 +276,8 @@ def bundle(
         force: Overwrite output directory if it exists.
         strict: Enforce strict OKF spec output: fail on broken local .md
             links and skip AGENTS.md generation.
+        dry_run: Validate and report what would be written without creating
+            or modifying any files or directories.
 
     Returns:
         BundleResult with counts, warnings, and errors.
@@ -294,12 +297,14 @@ def bundle(
         raise ValueError("Input and output directories must be different")
 
     if dst.exists():
-        if not force:
+        if not dry_run and not force:
             raise FileExistsError(
                 f"Output directory '{dst}' exists. Use --force to overwrite."
             )
-        shutil.rmtree(dst)
-        warnings.append(f"Removed existing '{dst}'")
+        if force:
+            if not dry_run:
+                shutil.rmtree(dst)
+            warnings.append(f"Removed existing '{dst}'")
 
     try:
         ignored = _load_okfignore(src)
@@ -372,7 +377,6 @@ def bundle(
     for f in md_files:
         rel = f.relative_to(src)
         out_file = dst / rel
-        out_file.parent.mkdir(parents=True, exist_ok=True)
 
         if rel.parent == Path("."):
             type_name = default_type or src.name
@@ -383,19 +387,22 @@ def bundle(
         title, description, body = parse_md(text)
         ts = datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat()
 
-        try:
-            _write_concept(title, description, body, out_file, type_name, ts)
-        except ValueError as e:
-            errors.append(f"{rel}: {e}")
-            return BundleResult(len(processed), dst, warnings, errors)
+        if not dry_run:
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                _write_concept(title, description, body, out_file, type_name, ts)
+            except ValueError as e:
+                errors.append(f"{rel}: {e}")
+                return BundleResult(len(processed), dst, warnings, errors)
         processed.append(
             (rel, {"title": title, "description": description, "type": type_name})
         )
 
-    _generate_indexes(processed, dst)
+    if not dry_run:
+        _generate_indexes(processed, dst)
 
     # Write AGENTS.md (skipped in strict mode)
-    if not strict:
+    if not dry_run and not strict:
         (dst / "AGENTS.md").write_text(
             f"# Knowledge Base: {dst.name}\n\n"
             f"You are in an OKF (Open Knowledge Format) knowledge base called "
@@ -494,9 +501,7 @@ def show_concept(bundle_dir: str | Path, concept_id: str) -> ConceptContent:
         raise ValueError(f"'{concept_id}' is a reserved filename, not a concept")
 
     if not concept_path.is_file():
-        raise FileNotFoundError(
-            f"Concept '{concept_id}' not found"
-        )
+        raise FileNotFoundError(f"Concept '{concept_id}' not found")
 
     raw = concept_path.read_text(encoding="utf-8")
     fm = parse_frontmatter(raw)

@@ -19,14 +19,19 @@ uv run okf validate example_knowledge_base
 uv run okf list example_knowledge_base
 uv run okf read example_knowledge_base tables/customers
 uv run okf bundle example --default-type reference --force --strict
+uv run okf bundle example --default-type reference --dry-run
 ```
 
 ### Python API
 
 ```python
 from okf.api import (
-    bundle, convert_file, convert_content,
-    list_concepts, show_concept, validate,
+    bundle,
+    convert_file,
+    convert_content,
+    list_concepts,
+    show_concept,
+    validate,
 )
 
 # Full directory bundle
@@ -51,6 +56,7 @@ Why this sequence:
 1. `validate` checks OKF conformance gate used by readers.
 1. `list`/`show` operate only on conformant bundles.
 1. `--strict` catches broken local `.md` references at bundle time and skips `AGENTS.md` generation.
+1. `--dry-run` validates the source and reports warnings/errors without writing any files.
 
 ## OpenWiki map
 

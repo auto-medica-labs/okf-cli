@@ -458,6 +458,84 @@ class TestBundle:
         assert "[bad](bad.md)" in index
         assert "[](" not in index
 
+    def test_dry_run_no_writes(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": "# Orders\n\n> One row.\n\nBody.",
+                "tables/customers.md": "# Customers\n\n> All.\n\nBody.",
+            },
+        )
+
+        result = bundle(src, dst, dry_run=True)
+
+        assert result.files_written == 2
+        assert result.errors == []
+        assert not dst.exists()
+
+    def test_dry_run_reports_warnings(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {"tables/orders.md": "# Orders\n\n> One row.\n\nSee [C](customers.md)."},
+        )
+
+        result = bundle(src, dst, dry_run=True)
+
+        assert result.files_written == 1
+        assert any("not found in bundle" in w for w in result.warnings)
+        assert not dst.exists()
+
+    def test_dry_run_force_does_not_delete_existing(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        dst.mkdir()
+        (dst / "old.txt").write_text("preserve me")
+        _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+        result = bundle(src, dst, force=True, dry_run=True)
+
+        assert result.files_written == 1
+        assert any("Removed existing" in w for w in result.warnings)
+        assert (dst / "old.txt").exists()
+        assert (dst / "old.txt").read_text() == "preserve me"
+
+    def test_dry_run_no_force_when_output_exists(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        dst.mkdir()
+        (dst / "old.txt").write_text("preserve me")
+        _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+        result = bundle(src, dst, dry_run=True)
+
+        assert result.files_written == 1
+        assert result.errors == []
+        assert not any("Removed existing" in w for w in result.warnings)
+        assert (dst / "old.txt").exists()
+
+    def test_dry_run_strict_still_fails(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {"tables/orders.md": "# Orders\n\n> One row.\n\nSee [C](customers.md)."},
+        )
+
+        result = bundle(src, dst, strict=True, dry_run=True)
+
+        assert result.files_written == 0
+        assert any("strict link check failed" in e.lower() for e in result.errors)
+        assert not dst.exists()
+
 
 # ---------------------------------------------------------------------------
 # list_concepts()

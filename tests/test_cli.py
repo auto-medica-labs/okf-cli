@@ -87,6 +87,64 @@ def test_bundle_strict_shows_error(tmp_path: Path):
     assert not (dst / "AGENTS.md").exists()
 
 
+def test_bundle_dry_run_no_writes(tmp_path: Path):
+    src = tmp_path / "src"
+    dst = tmp_path / "out"
+    src.mkdir()
+    _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--dry-run"])
+    assert result.exit_code == 0
+    assert "Dry run" in result.output
+    assert "Would convert" in result.output
+    assert not dst.exists()
+
+
+def test_bundle_dry_run_existing_output_no_force(tmp_path: Path):
+    src = tmp_path / "src"
+    dst = tmp_path / "out"
+    src.mkdir()
+    dst.mkdir()
+    _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--dry-run"])
+    assert result.exit_code == 0
+    assert "Dry run" in result.output
+    assert "--force" not in result.output
+    assert dst.exists()
+
+
+def test_bundle_dry_run_shows_warnings(tmp_path: Path):
+    src = tmp_path / "src"
+    dst = tmp_path / "out"
+    src.mkdir()
+    _write(
+        src,
+        {"tables/orders.md": "# Orders\n\n> One row.\n\nSee [C](customers.md)."},
+    )
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--dry-run"])
+    assert result.exit_code == 0
+    normalized = " ".join(result.output.split())
+    assert "not found in bundle" in normalized
+    assert not dst.exists()
+
+
+def test_bundle_dry_run_strict_exits_on_error(tmp_path: Path):
+    src = tmp_path / "src"
+    dst = tmp_path / "out"
+    src.mkdir()
+    _write(
+        src,
+        {"tables/orders.md": "# Orders\n\n> One row.\n\nSee [C](customers.md)."},
+    )
+
+    result = runner.invoke(app, ["bundle", str(src), str(dst), "--dry-run", "--strict"])
+    assert result.exit_code == 1
+    assert "strict link check failed" in result.output
+    assert not dst.exists()
+
+
 # ---------------------------------------------------------------------------
 # validate — exit codes & error messages
 # ---------------------------------------------------------------------------
