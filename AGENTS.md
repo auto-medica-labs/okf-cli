@@ -44,7 +44,7 @@ okf-cli
 │   ├── core.py              # shared parsing/formatting/conformance
 │   └── commands/
 │       ├── bundle.py        # thin wrapper → api.bundle()
-│       ├── list.py          # thin wrapper → api.list_concepts()
+│       ├── list.py          # thin wrapper → api.list_entries()
 │       ├── read.py          # thin wrapper → api.show_concept()
 │       └── validate.py      # thin wrapper → api.validate()
 └── tests/
@@ -72,7 +72,7 @@ uv run okf validate bundled
 
 ### Modify conformance behavior
 
-Update `check_conformance()` in `src/okf/core.py`, then ensure `validate`, `list`, and `show` all behave consistently.
+Update `check_conformance()` in `src/okf/core.py`, then ensure `validate`, `list`, and `read` all behave consistently.
 
 ## Style guidelines
 
