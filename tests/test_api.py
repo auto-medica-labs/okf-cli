@@ -663,7 +663,8 @@ class TestListEntries:
 
         assert isinstance(entries, list)
         assert all(isinstance(e, dict) for e in entries)
-        assert all(k in e for e in entries for k in ("id", "type", "title", "description"))
+        keys = ("id", "type", "title", "description")
+        assert all(k in e for e in entries for k in keys)
         assert {"tables/orders", "datasets/sales"} == {e["id"] for e in entries}
 
     def test_entries_have_types(self, tmp_path: Path):

@@ -210,6 +210,63 @@ def test_list_empty_shows_message(tmp_path: Path):
     assert "No concepts found" in result.output
 
 
+def test_list_shows_table(tmp_path: Path):
+    d = tmp_path / "bundle"
+    d.mkdir()
+    _write(
+        d,
+        {
+            "tables/orders.md": (
+                "---\n"
+                "type: tables\n"
+                "title: Orders\n"
+                "description: Customer orders.\n"
+                "---\n\n"
+                "Body."
+            ),
+            "datasets/sales.md": (
+                "---\n"
+                "type: datasets\n"
+                "title: Sales\n"
+                "description: Sales data.\n"
+                "---\n\n"
+                "Body."
+            ),
+        },
+    )
+
+    result = runner.invoke(app, ["list", str(d)])
+    assert result.exit_code == 0
+    assert "Type" in result.output
+    assert "Title" in result.output
+    assert "Description" in result.output
+    assert "ID" in result.output
+    assert "Orders" in result.output
+    assert "Customer orders." in result.output
+    assert "tables/orders" in result.output
+    assert "okf read" in result.output
+
+
+def test_list_falls_back_to_stem_for_missing_title(tmp_path: Path):
+    d = tmp_path / "bundle"
+    d.mkdir()
+    _write(
+        d,
+        {
+            "tables/bad.md": (
+                "---\n"
+                "type: tables\n"
+                "---\n\n"
+                "Body."
+            ),
+        },
+    )
+
+    result = runner.invoke(app, ["list", str(d)])
+    assert result.exit_code == 0
+    assert "bad" in result.output
+
+
 # ---------------------------------------------------------------------------
 # read — exit codes & error messages
 # ---------------------------------------------------------------------------
