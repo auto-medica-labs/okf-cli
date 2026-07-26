@@ -19,7 +19,7 @@ Lenient fallback exists for imperfect files, but strict shape gives better metad
 ### 2) Bundle to OKF
 
 ```bash
-uv run okf bundle <input-dir> [output-dir] [--default-type <type>] [--force] [--strict]
+uv run okf bundle <input-dir> [output-dir] [--default-type <type>] [--force] [--strict] [--dry-run]
 # output-dir defaults to <input-dir>_knowledge_base
 # --default-type defaults to input directory name
 ```
@@ -30,7 +30,8 @@ Important behavior:
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
 - `.okfignore` in input root can skip exact bundle-relative paths.
 - `--strict` enforces strict OKF spec output: fails on broken local `.md` links and skips `AGENTS.md` generation.
-- `AGENTS.md` is generated at output root with navigation guidance (unless `--strict` is used).
+- `--dry-run` validates the source and reports warnings/errors without writing files or directories; existing output is left untouched even if `--force` is passed.
+- `AGENTS.md` is generated at output root with navigation guidance (unless `--strict` or `--dry-run` is used).
 
 Source: `src/okf/api.py`.
 
@@ -61,7 +62,7 @@ Start files:
 
 - `src/okf/core.py`
 - `tests/test_core.py`
-- `tests/test_api.py` (validate/list/show tests)
+- `tests/test_api.py` (validate/list/read tests)
 
 Why: `check_conformance` and parsing helpers are shared dependencies across the API layer.
 

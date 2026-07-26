@@ -5,9 +5,10 @@
 - API unit/integration tests: `tests/test_api.py`
   - `TestBundle` — bundling via `api.bundle()`, link checking, `.okfignore`, lenient parsing, `AGENTS.md` generation
   - `TestListConcepts` — listing via `api.list_concepts()`, reserved file handling
+  - `TestListEntries` — listing metadata via `api.list_entries()` (ID, type, title, description)
   - `TestShowConcept` — reading via `api.show_concept()`, path traversal guard
   - `TestValidate` — conformance checks via `api.validate()`, all §9 rule variants
-  - `TestWorkflow` — cross-command pipeline (bundle → validate/list/show)
+  - `TestWorkflow` — cross-command pipeline (bundle → validate/list/read)
   - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime timestamp
   - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no timestamp
 - Core unit tests: `tests/test_core.py`
@@ -16,7 +17,7 @@
   - conformance engine (`check_conformance`)
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
-  - Typer-specific behavior (argument parsing, `--force`, `--strict`)
+  - Typer-specific behavior (argument parsing, `--force`, `--strict`, `--dry-run`)
 
 ## Run tests
 
@@ -70,8 +71,9 @@ uv run pytest -q
 - Lenient parsing fallback when strict markdown format is missing.
 - Reserved filename differences between bundling and spec conformance.
 - Root `index.md` special allowance for `okf_version` only.
-- `list`/`show` hard failure on non-conformant bundles.
-- `show` path traversal guard.
+- `list`/`read` hard failure on non-conformant bundles.
+- `read` path traversal guard.
 - Link checking: `_resolve_md_target` path resolution, `--strict` fatal mode, missing/out-of-bundle targets.
+- `--dry-run`: no files written, warnings still reported, `--force` does not delete existing output.
 
 Primary evidence: `tests/test_api.py`, `tests/test_core.py`, `tests/test_cli.py`.

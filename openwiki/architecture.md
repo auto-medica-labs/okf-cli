@@ -17,15 +17,15 @@ Why this split: the API layer is the canonical home for all logic. Commands hand
 
 Public functions and return types:
 
-| Function                                       | Returns          | Key behavior                                                                  |
-| ---------------------------------------------- | ---------------- | ----------------------------------------------------------------------------- |
-| `bundle(input_dir, output_dir, ...)`           | `BundleResult`   | Full bundle pipeline with link checking, `.okfignore`, `AGENTS.md` generation |
-| `convert_file(input_file, output_file, type_)` | `BundleResult`   | Convert single markdown file to OKF concept (timestamp from mtime)            |
-| `convert_content(content, output_file, type_)` | `BundleResult`   | Convert raw markdown string to OKF concept (no timestamp)                     |
-| `list_concepts(bundle_dir)`                    | `list[str]`      | Conformance-gated concept ID listing                                          |
-| `list_entries(bundle_dir)`                     | `list[dict]`     | Conformance-gated concept metadata (id, type, title, description)             |
-| `show_concept(bundle_dir, concept_id)`         | `ConceptContent` | Conformance-gated concept read with path traversal guard                      |
-| `validate(bundle_dir)`                         | `ValidateResult` | Conformance check with `.ok` property                                         |
+| Function                                                                 | Returns          | Key behavior                                                                                                                   |
+| ------------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `bundle(input_dir, output_dir, *, default_type, force, strict, dry_run)` | `BundleResult`   | Full bundle pipeline with link checking, `.okfignore`, `AGENTS.md` generation; `dry_run` validates and reports without writing |
+| `convert_file(input_file, output_file, type_)`                           | `BundleResult`   | Convert single markdown file to OKF concept (timestamp from mtime)                                                             |
+| `convert_content(content, output_file, type_)`                           | `BundleResult`   | Convert raw markdown string to OKF concept (no timestamp)                                                                      |
+| `list_concepts(bundle_dir)`                                              | `list[str]`      | Conformance-gated concept ID listing                                                                                           |
+| `list_entries(bundle_dir)`                                               | `list[dict]`     | Conformance-gated concept metadata (id, type, title, description)                                                              |
+| `show_concept(bundle_dir, concept_id)`                                   | `ConceptContent` | Conformance-gated concept read with path traversal guard                                                                       |
+| `validate(bundle_dir)`                                                   | `ValidateResult` | Conformance check with `.ok` property                                                                                          |
 
 Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_generate_indexes`, `_write_concept`.
 
@@ -49,7 +49,8 @@ Each file imports from `okf.api` and calls the corresponding function, translati
 1. Read source directory + optional `.okfignore` (`_load_okfignore`).
 1. Walk `*.md`, skipping reserved names and ignored paths.
 1. Parse each markdown file via `parse_md` (strict first, lenient fallback).
-1. Scan markdown body links via `_iter_links` / `_resolve_md_target` — warns on missing or out-of-bundle targets; `--strict` makes these fatal.
+1. Scan markdown body links via `_iter_links` / `_resolve_md_target` — warns on missing or out-of-bundle targets; `--strict` makes these fatal (even during `--dry-run`).
+1. If `dry_run=True`, skip all writes: no concept files, no `index.md` files, and no `AGENTS.md`. The result still reports planned `files_written` and any warnings/errors.
 1. Build YAML frontmatter via `build_frontmatter`.
 1. Write transformed files and generate `index.md` per directory.
 1. Write `AGENTS.md` at output root with navigation guidance for the knowledge base (skipped when `--strict` is used).
@@ -82,7 +83,7 @@ Source: `src/okf/core.py` (constants), `src/okf/api.py` (enforcement).
 
 Major behavior shifts:
 
-- project started bundling-focused, then added `validate`/`list`/`show` workflow;
+- project started bundling-focused, then added `validate`/`list`/`read` workflow;
 - frontmatter parsing/conformance matured to real YAML parsing and shared conformance gating;
 - markdown parsing in bundling became lenient to tolerate imperfect source docs;
 - `.okfignore` added to allow selective exclusions without moving/deleting source files;
