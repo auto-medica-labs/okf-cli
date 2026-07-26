@@ -2,7 +2,7 @@
 
 Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write the content, `okf bundle` generates frontmatter, type, timestamps, and index files.
 
-Also validates bundles, lists concept IDs, reads concepts by ID, and reports version.
+Also validates bundles, lists concepts, reads concepts by ID, and reports version.
 
 ## Install
 
@@ -45,18 +45,22 @@ okf bundle example bundled --default-type reference --force --strict
 
 **Link checking**: scans body links to local `.md` targets. Missing or out-of-bundle links warn by default, fail with `--strict`.
 
-### `okf list` — list concept IDs in a bundle
+### `okf list` — list concepts in a bundle
 
 ```
 okf list <directory>
 ```
 
-Prints concept IDs (path without `.md`). Requires valid OKF bundle.
+Prints a table of concepts with ID, type, title, and description. Requires valid OKF bundle.
 
 ```bash
 okf list example_knowledge_base/
-# datasets/sales
-# tables/orders
+# ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┓
+# ┃ ID             ┃ Type     ┃ Title  ┃ Description ┃
+# ┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━┩
+# │ datasets/sales │ datasets │ Sales  │ Sales data. │
+# │ tables/orders  │ tables   │ Orders │ One row.    │
+# └────────────────┴──────────┴────────┴─────────────┘
 ```
 
 ### `okf read` — read a concept by ID

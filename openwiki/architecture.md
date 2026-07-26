@@ -23,6 +23,7 @@ Public functions and return types:
 | `convert_file(input_file, output_file, type_)` | `BundleResult`   | Convert single markdown file to OKF concept (timestamp from mtime)            |
 | `convert_content(content, output_file, type_)` | `BundleResult`   | Convert raw markdown string to OKF concept (no timestamp)                     |
 | `list_concepts(bundle_dir)`                    | `list[str]`      | Conformance-gated concept ID listing                                          |
+| `list_entries(bundle_dir)`                     | `list[dict]`     | Conformance-gated concept metadata (id, type, title, description)             |
 | `show_concept(bundle_dir, concept_id)`         | `ConceptContent` | Conformance-gated concept read with path traversal guard                      |
 | `validate(bundle_dir)`                         | `ValidateResult` | Conformance check with `.ok` property                                         |
 
@@ -59,9 +60,11 @@ Each file imports from `okf.api` and calls the corresponding function, translati
 1. Call `check_conformance` once.
 1. Return `ValidateResult` with file count, errors, and warnings.
 
-### `okf list` and `okf read` (via `api.list_concepts()` / `api.show_concept()`)
+### `okf list` and `okf read` (via `api.list_entries()` / `api.show_concept()`)
 
-Both functions first run `check_conformance`. If directory is non-conformant, they raise `ValueError`.
+`okf list` renders the metadata returned by `api.list_entries()` as a Rich table (ID, type, title, description). `okf read` looks up a single concept by ID via `api.show_concept()`.
+
+Both reading paths first run `check_conformance`. If directory is non-conformant, they raise `ValueError`.
 
 Reason: reading APIs should not return misleading data from broken bundles.
 
