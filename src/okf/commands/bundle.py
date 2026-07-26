@@ -57,8 +57,8 @@ def bundle(
 
     for w in result.warnings:
         err_console.print(f"Warning: {w}", style="yellow")
-    for e in result.errors:
-        err_console.print(f"Error: {e}", style="red")
+    for error in result.errors:
+        err_console.print(f"Error: {error}", style="red")
 
     if result.errors:
         raise typer.Exit(code=1)

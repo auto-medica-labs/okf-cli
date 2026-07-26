@@ -226,6 +226,12 @@ class TestBundle:
         with pytest.raises(ValueError, match="different"):
             bundle(src, src)
 
+    def test_output_inside_input(self, tmp_path: Path):
+        src = tmp_path / "src"
+        src.mkdir()
+        with pytest.raises(ValueError, match="inside input"):
+            bundle(src, src / "out")
+
     def test_empty_dir(self, tmp_path: Path):
         src = tmp_path / "src"
         src.mkdir()

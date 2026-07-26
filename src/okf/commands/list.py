@@ -32,8 +32,8 @@ def cmd_list(
     )
     table.columns[0].no_wrap = True
 
-    for e in entries:
-        title = e["title"] if e["title"] else Path(e["id"]).stem
-        table.add_row(e["id"], e["type"], title, e["description"])
+    for entry in entries:
+        title = entry["title"] if entry["title"] else Path(entry["id"]).stem
+        table.add_row(entry["id"], entry["type"], title, entry["description"])
 
     console.print(table)

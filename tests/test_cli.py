@@ -253,12 +253,7 @@ def test_list_falls_back_to_stem_for_missing_title(tmp_path: Path):
     _write(
         d,
         {
-            "tables/bad.md": (
-                "---\n"
-                "type: tables\n"
-                "---\n\n"
-                "Body."
-            ),
+            "tables/bad.md": ("---\ntype: tables\n---\n\nBody."),
         },
     )
 

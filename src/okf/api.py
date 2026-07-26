@@ -296,6 +296,13 @@ def bundle(
     if src.resolve() == dst.resolve():
         raise ValueError("Input and output directories must be different")
 
+    try:
+        dst.resolve().relative_to(src.resolve())
+    except ValueError:
+        pass
+    else:
+        raise ValueError("Output directory must not be inside input directory")
+
     if dst.exists():
         if not dry_run and not force:
             raise FileExistsError(
@@ -488,12 +495,14 @@ def list_entries(bundle_dir: str | Path) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     for cid, f in _iter_concept_files(Path(bundle_dir)):
         fm = parse_frontmatter(f.read_text(encoding="utf-8")) or {}
-        entries.append({
-            "id": cid,
-            "type": str(fm.get("type", "")),
-            "title": str(fm.get("title", "")),
-            "description": str(fm.get("description", "")),
-        })
+        entries.append(
+            {
+                "id": cid,
+                "type": str(fm.get("type", "")),
+                "title": str(fm.get("title", "")),
+                "description": str(fm.get("description", "")),
+            }
+        )
 
     return entries
 

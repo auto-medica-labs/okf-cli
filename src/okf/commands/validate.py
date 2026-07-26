@@ -18,10 +18,11 @@ def validate(
 
     for w in result.warnings:
         err_console.print(f"Warning: {w}", style="yellow")
-    for e in result.errors:
-        err_console.print(f"Error: {e}", style="red")
+    for error in result.errors:
+        err_console.print(f"Error: {error}", style="red")
 
-    ok = result.total_files - len(result.errors)
+    bad_files = len({error.split(":", 1)[0] for error in result.errors})
+    ok = result.total_files - bad_files
     parts = [f"{result.total_files} files: {ok} ok"]
     if result.errors:
         parts.append(f"{len(result.errors)} errors")
