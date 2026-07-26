@@ -28,12 +28,12 @@ Global options: `--version`, `--help`.
 okf bundle <input-dir> [output-dir] [--default-type <name>] [--force] [--strict]
 ```
 
-| Argument         | Description                                                                  |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `input-dir`      | Directory of plain `.md` files                                               |
-| `output-dir`     | Target directory (default: `<input-dir>_knowledge_base`)                     |
-| `--default-type` | Type for root-level files (default: input directory name)                    |
-| `--force`, `-f`  | Overwrite output directory if it exists                                      |
+| Argument         | Description                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| `input-dir`      | Directory of plain `.md` files                                                                   |
+| `output-dir`     | Target directory (default: `<input-dir>_knowledge_base`)                                         |
+| `--default-type` | Type for root-level files (default: input directory name)                                        |
+| `--force`, `-f`  | Overwrite output directory if it exists                                                          |
 | `--strict`       | Enforce strict OKF spec output: fail on broken local `.md` links and skip `AGENTS.md` generation |
 
 ```bash

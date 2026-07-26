@@ -45,7 +45,7 @@ okf-cli
 │   └── commands/
 │       ├── bundle.py        # thin wrapper → api.bundle()
 │       ├── list.py          # thin wrapper → api.list_concepts()
-│       ├── show.py          # thin wrapper → api.show_concept()
+│       ├── read.py          # thin wrapper → api.show_concept()
 │       └── validate.py      # thin wrapper → api.validate()
 └── tests/
     ├── test_api.py          # API unit/integration tests

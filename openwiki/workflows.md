@@ -51,7 +51,7 @@ uv run okf list <output-dir>
 uv run okf read <output-dir> <concept-id>
 ```
 
-`list` returns concept IDs; `show` prints full concept markdown.
+`list` returns concept IDs; `read` prints full concept markdown.
 
 ## Contributor workflow
 

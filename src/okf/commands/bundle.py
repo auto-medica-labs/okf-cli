@@ -29,6 +29,11 @@ def bundle(
             "and skip AGENTS.md generation"
         ),
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and show warnings without writing any files",
+    ),
 ) -> None:
     """Convert plain markdown into an OKF-conformant knowledge bundle."""
     try:
@@ -38,6 +43,7 @@ def bundle(
             default_type=default_type,
             force=force,
             strict=strict,
+            dry_run=dry_run,
         )
     except FileNotFoundError as e:
         err_console.print(f"Error: {e}", style="red")
@@ -58,7 +64,13 @@ def bundle(
         raise typer.Exit(code=1)
 
     n = result.files_written
+    if dry_run:
+        verb = "Would convert"
+        prefix = "Dry run."
+    else:
+        verb = "Converted"
+        prefix = "Done."
     console.print(
-        f"Done. Converted {n} file{'s' if n != 1 else ''} → {result.output_dir}",
+        f"{prefix} {verb} {n} file{'s' if n != 1 else ''} → {result.output_dir}",
         style="green",
     )
