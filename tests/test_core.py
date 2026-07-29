@@ -124,17 +124,28 @@ def test_build_frontmatter_drops_reserved_extras():
 def test_parse_md_basic():
     text = "# Orders\n\n> One row per order.\n\nBody here."
 
-    assert parse_md(text) == ("Orders", "One row per order.", "Body here.")
+    title, description, body = parse_md(text)
+    assert title == "Orders"
+    assert description == "One row per order."
+    assert body == text
 
 
 def test_parse_md_multiline_description():
     text = "# Orders\n\n> Line one\n> Line two\n\nBody."
 
-    assert parse_md(text) == ("Orders", "Line one Line two", "Body.")
+    title, description, body = parse_md(text)
+    assert title == "Orders"
+    assert description == "Line one Line two"
+    assert body == text
 
 
 def test_parse_md_no_blank_after_title():
-    assert parse_md("# Orders\n> Desc\n\nBody.") == ("Orders", "Desc", "Body.")
+    text = "# Orders\n> Desc\n\nBody."
+
+    title, description, body = parse_md(text)
+    assert title == "Orders"
+    assert description == "Desc"
+    assert body == text
 
 
 def test_parse_md_missing_title_uses_lenient_fallback():
@@ -144,27 +155,39 @@ def test_parse_md_missing_title_uses_lenient_fallback():
 
 
 def test_parse_md_missing_description_uses_body():
-    assert parse_md("# Orders\n\nBody no desc.") == (
-        "Orders",
-        "Body no desc.",
-        "Body no desc.",
-    )
+    text = "# Orders\n\nBody no desc."
+
+    title, description, body = parse_md(text)
+    assert title == "Orders"
+    assert description == "Body no desc."
+    assert body == text
 
 
 def test_parse_md_empty_title_uses_lenient_fallback():
-    assert parse_md("# \n> Desc\n\nBody.") == ("", "> Desc Body.", "> Desc\n\nBody.")
+    text = "# \n> Desc\n\nBody."
+
+    title, description, body = parse_md(text)
+    assert title == ""
+    assert description == "> Desc Body."
+    assert body == text
 
 
 def test_parse_md_only_title_and_description():
-    assert parse_md("# Orders\n> Just a description") == (
-        "Orders",
-        "Just a description",
-        "",
-    )
+    text = "# Orders\n> Just a description"
+
+    title, description, body = parse_md(text)
+    assert title == "Orders"
+    assert description == "Just a description"
+    assert body == text
 
 
 def test_parse_md_preserves_trailing_newline_in_body():
-    assert parse_md("# Orders\n> Desc\n\nBody\n") == ("Orders", "Desc", "Body\n")
+    text = "# Orders\n> Desc\n\nBody\n"
+
+    title, description, body = parse_md(text)
+    assert title == "Orders"
+    assert description == "Desc"
+    assert body == text
 
 
 def test_parse_md_truncates_lenient_description():
@@ -291,7 +314,7 @@ def test_parse_md_with_frontmatter_basic():
     assert fm == {"type": "ref", "tags": ["a", "b"]}
     assert title == "Title"
     assert description == "Desc"
-    assert body == "Body."
+    assert body == "# Title\n\n> Desc\n\nBody."
 
 
 def test_parse_md_with_frontmatter_no_frontmatter():
@@ -302,7 +325,7 @@ def test_parse_md_with_frontmatter_no_frontmatter():
     assert fm == {}
     assert title == "Title"
     assert description == "Desc"
-    assert body == "Body."
+    assert body == text
 
 
 def test_parse_md_with_frontmatter_title_override():
@@ -313,7 +336,7 @@ def test_parse_md_with_frontmatter_title_override():
     assert fm == {"title": "Frontmatter Title"}
     assert title == "Body Title"
     assert description == "Desc"
-    assert body == "Body."
+    assert body == "# Body Title\n\n> Desc\n\nBody."
 
 
 def test_parse_md_with_frontmatter_empty_frontmatter():

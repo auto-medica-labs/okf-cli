@@ -56,7 +56,8 @@ def build_frontmatter(
 def _parse_strict(text: str) -> tuple[str, str, str]:
     """Parse strict: line 1 must be '# Title' followed by '>' block.
 
-    Raises ValueError on format violation.
+    The original text is returned as body so the bundled concept keeps the
+    same markdown content as the source. Raises ValueError on format violation.
     """
     lines = text.splitlines(keepends=True)
 
@@ -82,18 +83,15 @@ def _parse_strict(text: str) -> tuple[str, str, str]:
 
     description = " ".join(desc_lines).strip()
 
-    while i < len(lines) and not lines[i].strip():
-        i += 1
-
-    body = "".join(lines[i:])
-
-    return title, description, body
+    return title, description, text
 
 
 def _parse_lenient(text: str) -> tuple[str, str, str]:
     """Parse lenient: best-effort title from line 0, description from body.
 
-    Never raises.
+    The original text is returned as body so the bundled concept keeps the
+    same markdown content as the source. Description falls back to the first
+    80 characters of the text after the title line. Never raises.
     """
     lines = text.splitlines(keepends=True)
 
@@ -104,10 +102,11 @@ def _parse_lenient(text: str) -> tuple[str, str, str]:
         title = ""
         rest = text
 
-    body = rest.strip()
+    body = text
 
-    if body:
-        collapsed = " ".join(body.split())
+    rest_stripped = rest.strip()
+    if rest_stripped:
+        collapsed = " ".join(rest_stripped.split())
         desc = collapsed[:80]
         if len(collapsed) > 80:
             desc = desc.rstrip() + "..."
@@ -123,6 +122,9 @@ def parse_md(text: str) -> tuple[str, str, str]:
     Tries strict parsing first (line 1 '# Title', '>' block).
     Falls back to lenient: title from line 0 if present, description
     derived from first 80 chars of body.
+
+    The returned body preserves the original markdown content; only the
+    caller (e.g. ``parse_md_with_frontmatter``) strips input frontmatter.
 
     Returns (title, description, body). Never raises.
     """
