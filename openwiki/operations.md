@@ -42,6 +42,8 @@ Pipeline:
 1. checkout
 1. setup `uv` with Python 3.11
 1. `uv sync`
+1. `uvx ruff check .`
+1. `uvx ruff format --check .`
 1. `uv run pytest -q`
 
 No deploy pipeline in repo; CI currently focused on correctness tests.

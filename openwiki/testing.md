@@ -7,7 +7,7 @@
   - `TestListConcepts` — listing via `api.list_concepts()`, reserved file handling
   - `TestListEntries` — listing metadata via `api.list_entries()` (ID, type, title, description)
   - `TestShowConcept` — reading via `api.show_concept()`, path traversal guard
-  - `TestValidate` — conformance checks via `api.validate()`, all §9 rule variants
+  - `TestValidate` — conformance checks via `api.validate()`, all §11 rule variants
   - `TestWorkflow` — cross-command pipeline (bundle → validate/list/read)
   - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime `generated` block
   - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no `generated` block

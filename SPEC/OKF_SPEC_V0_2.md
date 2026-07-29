@@ -16,7 +16,7 @@ This document is self-contained: it specifies everything needed to
 produce and consume OKF v0.2. A summary of what changed from v0.1 is in
 §13.
 
----
+______________________________________________________________________
 
 ## 1. Motivation
 
@@ -31,19 +31,19 @@ formats that are:
 - **Portable** across tools, organizations, and time.
 
 Increasingly, a knowledge corpus is not authored once and then read: it
-is **continuously written and maintained by agents**. When most concepts 
-are machine-generated, a consumer needs answers that a plain 
+is **continuously written and maintained by agents**. When most concepts
+are machine-generated, a consumer needs answers that a plain
 markdown-plus-frontmatter convention does not make first-class:
 
 1. What was this created from, and how was it verified? (**provenance**)
-2. How much should I trust it? (**trust**)
-3. Is it still true? (**freshness**)
-4. Is it the current version? (**lifecycle**)
-5. Was this number produced the way we said it must be? (**attestation**)
+1. How much should I trust it? (**trust**)
+1. Is it still true? (**freshness**)
+1. Is it the current version? (**lifecycle**)
+1. Was this number produced the way we said it must be? (**attestation**)
 
 OKF v0.2 makes provenance, trust, lifecycle, and attestation first-class
-while keeping the format minimally opinionated. The format is minimally 
-opinionated. It standardizes only the small set of structural conventions 
+while keeping the format minimally opinionated. The format is minimally
+opinionated. It standardizes only the small set of structural conventions
 needed to make a knowledge corpus self-describing — anything beyond that
 is left to the producer.
 
@@ -51,10 +51,10 @@ is left to the producer.
 
 1. Define a universal format that **producers** (people, agents, export
    pipelines) can write into.
-2. Inform how **consumers** (agents, UIs, search indexes, deterministic
+1. Inform how **consumers** (agents, UIs, search indexes, deterministic
    code) should read and traverse it.
-3. Facilitate **exchange** of knowledge across systems and organizations.
-4. Standardize the small set of frontmatter fields that make an
+1. Facilitate **exchange** of knowledge across systems and organizations.
+1. Standardize the small set of frontmatter fields that make an
    agent-maintained corpus **trustable**, without prescribing any runtime.
 
 ### Non-goals
@@ -66,7 +66,7 @@ is left to the producer.
 - Specifying a packaging or invocation standard for the code an executor
   or attester points at. OKF fixes the interface, not the packaging.
 
----
+______________________________________________________________________
 
 ## 2. Terminology
 
@@ -104,7 +104,7 @@ is left to the producer.
 - **Attester**: Deterministic (no-LLM) code that inspects a receipt and
   returns a verdict (see §10.2).
 
----
+______________________________________________________________________
 
 ## 3. Bundle structure
 
@@ -136,10 +136,10 @@ A bundle MAY be distributed as:
 The following filenames have defined meaning at any level of the
 hierarchy and MUST NOT be used for concept documents:
 
-| Filename   | Purpose                          |
-|------------|----------------------------------|
-| `index.md` | Directory listing. See §8.       |
-| `log.md`   | Update history. See §9.          |
+| Filename   | Purpose                    |
+| ---------- | -------------------------- |
+| `index.md` | Directory listing. See §8. |
+| `log.md`   | Update history. See §9.    |
 
 All other `.md` files are concept documents.
 
@@ -148,7 +148,7 @@ Tags remain a first-class concept through the `tags` frontmatter field
 documents by tag; a consumer that wants a tag-browsing view can
 synthesize one at consumption time by scanning frontmatter.
 
----
+______________________________________________________________________
 
 ## 4. Concept documents
 
@@ -156,7 +156,7 @@ Every concept is a UTF-8 markdown file with two parts:
 
 1. A **YAML frontmatter block**, delimited by `---` on its own line at the
    start of the file and a closing `---` on its own line.
-2. A **markdown body**, containing free-form content.
+1. A **markdown body**, containing free-form content.
 
 ### 4.1 Frontmatter
 
@@ -215,10 +215,10 @@ structure aids both human reading and agent retrieval.
 There are no required body sections. The following headings have
 **conventional** meaning and SHOULD be used when applicable:
 
-| Heading         | Purpose                                                |
-|-----------------|--------------------------------------------------------|
-| `# Schema`      | Structured description of an asset's columns/fields.   |
-| `# Examples`    | Concrete usage examples, often as fenced code blocks.  |
+| Heading         | Purpose                                                         |
+| --------------- | --------------------------------------------------------------- |
+| `# Schema`      | Structured description of an asset's columns/fields.            |
+| `# Examples`    | Concrete usage examples, often as fenced code blocks.           |
 | `# Computation` | The sanctioned computation of an Attested Computation. See §10. |
 
 Per-claim attribution to external sources uses markdown footnotes keyed to
@@ -272,7 +272,7 @@ expected SLA. See the [orders table](/tables/orders.md).
 2. ...
 ```
 
----
+______________________________________________________________________
 
 ## 5. Provenance, trust, and lifecycle
 
@@ -429,7 +429,7 @@ Optional. An absolute date (`YYYY-MM-DD`). A concept is stale when
 staleness decision a plain date comparison with no reference to when the
 concept was read.
 
----
+______________________________________________________________________
 
 ## 6. Cross-linking and paths
 
@@ -481,7 +481,7 @@ executors, and attesters commonly point into it (for example
 `references/attesters/revenue.py`). It is a naming convention, not a
 requirement.
 
----
+______________________________________________________________________
 
 ## 7. Actor convention
 
@@ -497,7 +497,7 @@ single actor convention:
 Consumers that classify trust (§5.3) key off the `human:` prefix, so
 producers MUST use it for hand-authored or human-confirmed content.
 
----
+______________________________________________________________________
 
 ## 8. Index files
 
@@ -525,7 +525,7 @@ Entries SHOULD include the description from the linked concept's
 frontmatter. Producers MAY generate `index.md` automatically; consumers
 MAY synthesize one on the fly when none is present.
 
----
+______________________________________________________________________
 
 ## 9. Log files
 
@@ -548,7 +548,7 @@ Date headings MUST use ISO 8601 `YYYY-MM-DD` form. Log entries are prose;
 the leading bold word (`**Update**`, `**Creation**`, `**Deprecation**`) is
 a convention, not a requirement.
 
----
+______________________________________________________________________
 
 ## 10. Attested computations concept
 
@@ -701,17 +701,17 @@ are **not** stored in the bundle.
 1. **Discover** via `type: Attested Computation`, a frontmatter signal
    liftable into `index.md`; a consumer reaches one directly or by
    following a link from a concept that uses it.
-2. **Load** the contract from frontmatter and the computation from the
+1. **Load** the contract from frontmatter and the computation from the
    body (or the file named by `computation`).
-3. **Parameterize**: the agent supplies values for the declared parameters.
-4. **Execute**: the executor runs the bound computation and returns a
+1. **Parameterize**: the agent supplies values for the declared parameters.
+1. **Execute**: the executor runs the bound computation and returns a
    receipt shaped by `executor.receipt`.
-5. **Attest**: the consumer runs the attester over the receipt. It
+1. **Attest**: the consumer runs the attester over the receipt. It
    confirms provenance (the computation that ran equals `computation` bound
    with the claimed parameters, not agent-authored SQL) and fidelity (the
    displayed value matches the receipt's authoritative source, re-read by
    job id rather than taken from the agent's text).
-6. **Gate**: refuse to display a failing attestation; warn or refuse when
+1. **Gate**: refuse to display a failing attestation; warn or refuse when
    `today >= stale_after`. On success, surface the verdict (for example a
    link to the job log) so trust is visible.
 
@@ -728,7 +728,7 @@ A concept with a stale definition can still attest cleanly, and a
 freshly-verified definition still requires attestation on each run, which
 is why both are needed.
 
----
+______________________________________________________________________
 
 ## 11. Conformance
 
@@ -736,8 +736,8 @@ A bundle is **conformant** with OKF v0.2 if:
 
 1. Every non-reserved `.md` file in the tree contains a parseable YAML
    frontmatter block.
-2. Every frontmatter block contains a non-empty `type` field.
-3. Every reserved filename (`index.md`, `log.md`) follows the structure in
+1. Every frontmatter block contains a non-empty `type` field.
+1. Every reserved filename (`index.md`, `log.md`) follows the structure in
    §8 and §9 respectively when present.
 
 When the trust, lifecycle, provenance, or computation families are
@@ -758,7 +758,7 @@ particular, consumers MUST NOT reject a bundle because of:
 - Broken cross-links.
 - Missing `index.md` files.
 
----
+______________________________________________________________________
 
 ## 12. Versioning
 
@@ -788,7 +788,7 @@ The following are intentionally left to a future revision:
 - Semantic-layer templates (Looker, dbt) where the attester comparison
   shifts from SQL equality to model-and-binding equality.
 
----
+______________________________________________________________________
 
 ## 13. Changes from v0.1
 
@@ -826,7 +826,7 @@ Everything else (bundle structure, reserved filenames, the required
 index files, log files, permissive conformance) is carried forward
 unchanged.
 
----
+______________________________________________________________________
 
 ## Appendix A: Worked example, an income statement
 
