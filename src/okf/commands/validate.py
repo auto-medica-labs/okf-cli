@@ -7,9 +7,11 @@ from okf.core import console, err_console
 
 
 def validate(
-    directory: str = typer.Argument(..., help="Directory to validate as an OKF bundle"),
+    directory: str = typer.Argument(
+        ..., help="Directory to validate as an OKF v0.2 bundle"
+    ),
 ) -> None:
-    """Check whether a directory conforms to the OKF specification."""
+    """Check whether a directory conforms to the OKF v0.2 specification."""
     try:
         result = api.validate(directory)
     except NotADirectoryError as e:

@@ -25,33 +25,43 @@ def test_yaml_val_returns_json_string():
 
 
 def test_build_frontmatter_basic():
-    fm = build_frontmatter("tables", "Orders", "One row.", "2026-07-04T12:00:00")
+    fm = build_frontmatter(
+        "tables",
+        "Orders",
+        "One row.",
+        {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"},
+    )
 
     assert fm == (
         "---\n"
         'type: "tables"\n'
         'title: "Orders"\n'
         'description: "One row."\n'
-        'timestamp: "2026-07-04T12:00:00"\n'
+        "generated:\n"
+        '  by: "okf-cli/0.5.5"\n'
+        '  at: "2026-07-04T12:00:00"\n'
         "---"
     )
 
 
 def test_build_frontmatter_escapes_special_characters():
-    fm = build_frontmatter("ref", "Thing: A", 'Has: colons and "quotes"', "")
+    fm = build_frontmatter("ref", "Thing: A", 'Has: colons and "quotes"', None)
 
     assert 'title: "Thing: A"' in fm
     assert 'description: "Has: colons and \\"quotes\\""' in fm
-    assert "timestamp:" not in fm
+    assert "generated:" not in fm
 
 
 def test_build_frontmatter_omits_empty_title():
-    fm = build_frontmatter("ref", "", "Desc here.", "2026-07-04T12:00:00")
+    fm = build_frontmatter(
+        "ref", "", "Desc here.", {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"}
+    )
 
     assert "title:" not in fm
     assert 'type: "ref"' in fm
     assert 'description: "Desc here."' in fm
-    assert 'timestamp: "2026-07-04T12:00:00"' in fm
+    assert 'by: "okf-cli/0.5.5"' in fm
+    assert 'at: "2026-07-04T12:00:00"' in fm
 
 
 # --- parse_md ---
@@ -202,7 +212,7 @@ def test_check_conformance_validates_reserved_frontmatter(tmp_path: Path):
 
 
 def test_check_conformance_allows_only_okf_version_in_root_index(tmp_path: Path):
-    (tmp_path / "index.md").write_text('---\nokf_version: "0.1"\n---\n\n# Contents')
+    (tmp_path / "index.md").write_text('---\nokf_version: "0.2"\n---\n\n# Contents')
 
     assert check_conformance(tmp_path) == ([], [])
 

@@ -19,7 +19,12 @@ def yaml_val(v: str) -> str:
     return json.dumps(v, ensure_ascii=True)
 
 
-def build_frontmatter(type_: str, title: str, description: str, timestamp: str) -> str:
+def build_frontmatter(
+    type_: str,
+    title: str,
+    description: str,
+    generated: dict[str, str] | None = None,
+) -> str:
     parts = [
         "---",
         f"type: {yaml_val(type_)}",
@@ -27,8 +32,13 @@ def build_frontmatter(type_: str, title: str, description: str, timestamp: str) 
     if title:
         parts.append(f"title: {yaml_val(title)}")
     parts.append(f"description: {yaml_val(description)}")
-    if timestamp:
-        parts.append(f"timestamp: {yaml_val(timestamp)}")
+    if generated:
+        by = generated.get("by", "")
+        at = generated.get("at", "")
+        if by and at:
+            parts.append("generated:")
+            parts.append(f"  by: {yaml_val(by)}")
+            parts.append(f"  at: {yaml_val(at)}")
     parts.append("---")
     return "\n".join(parts)
 
@@ -139,7 +149,7 @@ def parse_frontmatter(text: str) -> dict[str, Any] | None:
 
 
 def check_conformance(dir_path: Path) -> tuple[list[str], list[str]]:
-    """Check OKF v0.1 conformance for a directory.
+    """Check OKF v0.2 conformance for a directory (§11).
 
     Returns (errors, warnings).  An empty directory produces no errors.
 

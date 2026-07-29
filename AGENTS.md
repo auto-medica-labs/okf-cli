@@ -35,7 +35,7 @@ uv run okf --help          # run CLI
 ```
 okf-cli
 ├── .github/workflows/test.yml # CI (pytest on 3.11)
-├── OKF_SPEC.md              # OKF v0.1 specification
+├── SPEC/OKF_SPEC_V0_2.md    # OKF v0.2 specification
 ├── pyproject.toml           # project metadata + deps
 ├── uv.lock                  # uv lockfile
 ├── src/okf/

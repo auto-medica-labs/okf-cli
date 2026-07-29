@@ -8,7 +8,7 @@ This repository models an **OKF knowledge bundle pipeline**:
 - canonical output domain: OKF concept documents with YAML frontmatter + directory `index.md` files;
 - reader domain: concept ID listing and retrieval from conformant bundles.
 
-Spec anchor: `OKF_SPEC.md`.
+Spec anchor: `SPEC/OKF_SPEC_V0_2.md`.
 
 ## Key entities
 
@@ -17,7 +17,7 @@ Spec anchor: `OKF_SPEC.md`.
 Markdown file with YAML frontmatter at top:
 
 - required for non-reserved files: `type` (non-empty string)
-- optional but common: `title`, `description`, `timestamp`, plus arbitrary producer-defined keys
+- optional but common: `title`, `description`, `generated`, plus arbitrary producer-defined keys
 
 Implementation: `parse_frontmatter`, `check_conformance` in `src/okf/core.py`. API returns parsed data via `ConceptContent` dataclass.
 

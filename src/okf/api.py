@@ -7,6 +7,7 @@ import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from importlib.metadata import version as _package_version
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,19 @@ from okf.core import (
 )
 
 _LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+
+
+# ---------------------------------------------------------------------------
+# Package version for provenance
+# ---------------------------------------------------------------------------
+
+
+def _okfcli_actor() -> str:
+    """Return the actor identifier used in generated frontmatter."""
+    try:
+        return f"okf-cli/{_package_version('okf-cli')}"
+    except Exception:  # pragma: no cover
+        return "okf-cli/unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +158,12 @@ def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
             continue
 
         lines: list[str] = []
+        if dir_path == Path("."):
+            lines.append("---")
+            lines.append('okf_version: "0.2"')
+            lines.append("---")
+            lines.append("")
+
         entries = dir_files.get(dir_path, [])
         subdirs = sorted(dir_subdirs.get(dir_path, set()))
 
@@ -179,10 +199,10 @@ def _write_concept(
     body: str,
     output_file: Path,
     type_: str,
-    timestamp: str,
+    generated: dict[str, str] | None,
 ) -> None:
     """Parse content, build frontmatter, write OKF concept file."""
-    frontmatter = build_frontmatter(type_, title, description, timestamp)
+    frontmatter = build_frontmatter(type_, title, description, generated)
     if not (frontmatter.startswith("---\n") and frontmatter.endswith("\n---")):
         raise ValueError("generated invalid frontmatter")
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -197,7 +217,8 @@ def convert_file(
 ) -> BundleResult:
     """Convert a single markdown file to an OKF concept.
 
-    Timestamp is derived from the input file's mtime.
+    ``generated.at`` is derived from the input file's mtime; ``generated.by``
+    is the okf-cli actor.
 
     Args:
         input_file: Path to a plain markdown file.
@@ -220,8 +241,9 @@ def convert_file(
     text = src.read_text(encoding="utf-8")
     title, description, body = parse_md(text)
     ts = datetime.fromtimestamp(src.stat().st_mtime, tz=UTC).isoformat()
+    generated = {"by": _okfcli_actor(), "at": ts}
 
-    _write_concept(title, description, body, dst, type_, ts)
+    _write_concept(title, description, body, dst, type_, generated)
     return BundleResult(files_written=1, output_dir=dst.parent)
 
 
@@ -233,7 +255,7 @@ def convert_content(
 ) -> BundleResult:
     """Convert raw markdown content to an OKF concept.
 
-    No timestamp is set (field omitted from frontmatter).
+    No ``generated`` block is set (field omitted from frontmatter).
 
     Args:
         content: Raw markdown text.
@@ -249,7 +271,7 @@ def convert_content(
     dst = Path(output_file)
     title, description, body = parse_md(content)
 
-    _write_concept(title, description, body, dst, type_, "")
+    _write_concept(title, description, body, dst, type_, None)
     return BundleResult(files_written=1, output_dir=dst.parent)
 
 
@@ -393,11 +415,12 @@ def bundle(
         text = f.read_text(encoding="utf-8")
         title, description, body = parse_md(text)
         ts = datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat()
+        generated = {"by": _okfcli_actor(), "at": ts}
 
         if not dry_run:
             out_file.parent.mkdir(parents=True, exist_ok=True)
             try:
-                _write_concept(title, description, body, out_file, type_name, ts)
+                _write_concept(title, description, body, out_file, type_name, generated)
             except ValueError as e:
                 errors.append(f"{rel}: {e}")
                 return BundleResult(len(processed), dst, warnings, errors)
@@ -414,8 +437,8 @@ def bundle(
             f"# Knowledge Base: {dst.name}\n\n"
             f"You are in an OKF (Open Knowledge Format) knowledge base called "
             f"**{dst.name}**. OKF is a structured markdown format where each "
-            f"`.md` file is a concept with YAML frontmatter (`type`, `title`, "
-            f"`description`) and cross-links between related concepts.\n\n"
+            f"`.md` file is a concept with YAML frontmatter and cross-links "
+            f"between related concepts.\n\n"
             "## Instructions\n\n"
             "- **Answer from this knowledge base only.** Use the concepts and "
             "links here as your source of truth.\n"
@@ -427,7 +450,7 @@ def bundle(
             "## Navigation\n\n"
             "- Follow markdown links between concepts.\n"
             "- Each `.md` file has YAML frontmatter with `type`, `title`, "
-            "`description`.\n"
+            "`description`, and other producer-defined metadata.\n"
             "- Subdirectories group related concepts by topic.\n"
             "- Cross-links (e.g. `[Customers](/tables/customers.md)`) "
             "express relationships.\n",
@@ -561,7 +584,7 @@ def show_concept(bundle_dir: str | Path, concept_id: str) -> ConceptContent:
 
 
 def validate(bundle_dir: str | Path) -> ValidateResult:
-    """Check whether a directory conforms to the OKF specification.
+    """Check whether a directory conforms to the OKF v0.2 specification (§11).
 
     Args:
         bundle_dir: Path to check.

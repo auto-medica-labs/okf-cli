@@ -1,6 +1,6 @@
 # okf-cli — Open Knowledge Format tooling
 
-Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write the content, `okf bundle` generates frontmatter, type, timestamps, and index files.
+Converts plain markdown into [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-conformant knowledge bundles. Domain experts write the content, `okf bundle` generates frontmatter, type, provenance, and index files.
 
 Also validates bundles, lists concepts, reads concepts by ID, and reports version.
 
@@ -77,7 +77,7 @@ Prints full concept contents (frontmatter + body). Concept IDs as printed by `ok
 okf validate <directory>
 ```
 
-Checks OKF v0.1 §9 conformance: frontmatter required, `type` required, reserved filenames follow spec structure, UTF-8 required.
+Checks OKF v0.2 §11 conformance: frontmatter required, `type` required, reserved filenames follow spec structure, UTF-8 required.
 
 ```bash
 okf validate example_knowledge_base/
@@ -116,7 +116,7 @@ Each concept becomes a markdown file with YAML frontmatter:
 type: "tables"
 title: "Customer Orders"
 description: "One row per completed customer order across all channels."
-timestamp: "2026-07-04T15:06:51+00:00"
+generated:\n  by: "okf-cli/0.5.5"\n  at: "2026-07-04T15:06:51+00:00"
 ---
 
 Original body preserved as-is.
@@ -126,7 +126,7 @@ Every directory gets an `index.md` listing files and subdirs.
 
 ## OKF Conformance
 
-Generated bundles conform to [OKF v0.1](OKF_SPEC.md) (§9): frontmatter required, non-empty `type`, reserved filenames follow spec structure.
+Generated bundles conform to [OKF v0.2](SPEC/OKF_SPEC_V0_2.md) (§11): frontmatter required, non-empty `type`, reserved filenames follow spec structure.
 
 ## Project layout
 
@@ -134,7 +134,7 @@ Generated bundles conform to [OKF v0.1](OKF_SPEC.md) (§9): frontmatter required
 okf-cli
 ├── .github/workflows/test.yml  # CI
 ├── AGENTS.md                   # Contributor context for AI agents
-├── OKF_SPEC.md                 # OKF specification
+├── SPEC/OKF_SPEC_V0_2.md       # OKF v0.2 specification
 ├── README.md                   # This file
 ├── openwiki/                   # Contributor docs (architecture, workflows, etc.)
 ├── pyproject.toml              # uv-managed Python project

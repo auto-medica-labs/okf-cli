@@ -20,8 +20,8 @@ Public functions and return types:
 | Function                                                                 | Returns          | Key behavior                                                                                                                   |
 | ------------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `bundle(input_dir, output_dir, *, default_type, force, strict, dry_run)` | `BundleResult`   | Full bundle pipeline with link checking, `.okfignore`, `AGENTS.md` generation; `dry_run` validates and reports without writing |
-| `convert_file(input_file, output_file, type_)`                           | `BundleResult`   | Convert single markdown file to OKF concept (timestamp from mtime)                                                             |
-| `convert_content(content, output_file, type_)`                           | `BundleResult`   | Convert raw markdown string to OKF concept (no timestamp)                                                                      |
+| `convert_file(input_file, output_file, type_)`                           | `BundleResult`   | Convert single markdown file to OKF concept (`generated` from mtime)                                                           |
+| `convert_content(content, output_file, type_)`                           | `BundleResult`   | Convert raw markdown string to OKF concept (no `generated` block)                                                              |
 | `list_concepts(bundle_dir)`                                              | `list[str]`      | Conformance-gated concept ID listing                                                                                           |
 | `list_entries(bundle_dir)`                                               | `list[dict]`     | Conformance-gated concept metadata (id, type, title, description)                                                              |
 | `show_concept(bundle_dir, concept_id)`                                   | `ConceptContent` | Conformance-gated concept read with path traversal guard                                                                       |
@@ -33,10 +33,10 @@ Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_o
 
 - `RESERVED` — filenames `bundle` skips: `index.md`, `log.md`, `readme.md`.
 - `SPEC_RESERVED` — spec-level reserved names: `index.md`, `log.md`, `agents.md`.
-- `build_frontmatter(type_, title, description, timestamp)` — YAML frontmatter via JSON-escaped values.
+- `build_frontmatter(type_, title, description, generated)` — YAML frontmatter via JSON-escaped values.
 - `parse_md(text)` — extracts title/description/body; strict first, lenient fallback.
 - `parse_frontmatter(text)` — parses YAML frontmatter, returns `None` for invalid.
-- `check_conformance(directory)` — validates OKF §9, returns `(errors, warnings)`.
+- `check_conformance(directory)` — validates OKF v0.2 §11, returns `(errors, warnings)`.
 
 ### Command wrappers (`src/okf/commands/`)
 

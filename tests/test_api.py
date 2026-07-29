@@ -72,7 +72,9 @@ class TestBundle:
         assert 'type: "tables"' in text
         assert 'title: "A"' in text
         assert 'description: "Desc A."' in text
-        assert "timestamp:" in text
+        assert "generated:" in text
+        assert "by:" in text
+        assert "at:" in text
 
     def test_frontmatter_valid_yaml(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -89,9 +91,7 @@ class TestBundle:
         assert fm["type"] == "tables"
         assert fm["title"] == "A"
 
-    def test_frontmatter_yaml_parseable_tricky_values(self, tmp_path: Path):
-        import json
-
+    def test_frontmatter_yaml_parseable(self, tmp_path: Path):
         src = tmp_path / "src"
         dst = tmp_path / "out"
         src.mkdir()
@@ -102,12 +102,15 @@ class TestBundle:
         bundle(src, dst, default_type="ref")
 
         content = (dst / "data.md").read_text()
-        frontmatter = content.split("\n---\n")[0] + "\n---\n"
-        for line in frontmatter.strip().split("\n"):
-            if line == "---":
-                continue
-            key, _, raw_val = line.partition(": ")
-            assert json.loads(raw_val), f"Value for {key} is not valid JSON: {raw_val}"
+        fm_text = content.split("---\n", 1)[1].split("\n---", 1)[0]
+        fm = yaml.safe_load(fm_text)
+
+        assert isinstance(fm, dict)
+        assert fm["type"] == "ref"
+        assert fm["title"] == "True/False"
+        assert isinstance(fm["generated"], dict)
+        assert "by" in fm["generated"]
+        assert "at" in fm["generated"]
 
     def test_skip_reserved(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -970,7 +973,7 @@ class TestValidate:
         d = tmp_path / "bundle"
         d.mkdir()
         _write(d, {"tables/a.md": "---\ntype: ref\n---\n\nBody."})
-        (d / "index.md").write_text('---\nokf_version: "0.1"\n---\n\n# Contents')
+        (d / "index.md").write_text('---\nokf_version: "0.2"\n---\n\n# Contents')
 
         result = validate(d)
         assert result.ok
@@ -979,7 +982,7 @@ class TestValidate:
         d = tmp_path / "bundle"
         d.mkdir()
         _write(d, {"tables/a.md": "---\ntype: ref\n---\n\nBody."})
-        (d / "index.md").write_text('---\nokf_version: "0.1"\ntitle: Extra\n---')
+        (d / "index.md").write_text('---\nokf_version: "0.2"\ntitle: Extra\n---')
 
         result = validate(d)
         assert not result.ok
@@ -1131,7 +1134,9 @@ class TestConvertFile:
         assert 'type: "tables"' in text
         assert 'title: "Orders"' in text
         assert 'description: "One row per order."' in text
-        assert "timestamp:" in text
+        assert "generated:" in text
+        assert "by:" in text
+        assert "at:" in text
 
     def test_frontmatter_valid_yaml(self, tmp_path: Path):
         src = tmp_path / "input.md"
@@ -1208,7 +1213,7 @@ class TestConvertContent:
         assert 'type: "tables"' in text
         assert 'title: "Orders"' in text
         assert 'description: "One row per order."' in text
-        assert "timestamp" not in text
+        assert "generated" not in text
 
     def test_body_preserved(self, tmp_path: Path):
         dst = tmp_path / "output.md"
