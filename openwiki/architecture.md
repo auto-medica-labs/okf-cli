@@ -33,8 +33,13 @@ Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_o
 
 - `RESERVED` — filenames `bundle` skips: `index.md`, `log.md`, `readme.md`.
 - `SPEC_RESERVED` — spec-level reserved names: `index.md`, `log.md`, `agents.md`.
-- `build_frontmatter(type_, title, description, generated)` — YAML frontmatter via JSON-escaped values.
+- `build_frontmatter(type_, title, description, generated, extras)` — YAML
+  frontmatter rendered with `yaml.safe_dump`; `extras` are producer-defined
+  keys preserved from input frontmatter.
 - `parse_md(text)` — extracts title/description/body; strict first, lenient fallback.
+- `parse_md_with_frontmatter(text, strict=False)` — parses a leading YAML
+  frontmatter block, then extracts title/description/body from the remaining
+  content; malformed frontmatter either falls back (normal) or raises (`strict`).
 - `parse_frontmatter(text)` — parses YAML frontmatter, returns `None` for invalid.
 - `check_conformance(directory)` — validates OKF v0.2 §11, returns `(errors, warnings)`.
 
@@ -48,9 +53,11 @@ Each file imports from `okf.api` and calls the corresponding function, translati
 
 1. Read source directory + optional `.okfignore` (`_load_okfignore`).
 1. Walk `*.md`, skipping reserved names and ignored paths.
-1. Parse each markdown file via `parse_md` (strict first, lenient fallback).
+1. Parse each markdown file via `parse_md_with_frontmatter` (strict first on the
+   frontmatter block, then `parse_md` on the stripped body).
 1. Scan markdown body links via `_iter_links` / `_resolve_md_target` — warns on missing or out-of-bundle targets; `--strict` makes these fatal (even during `--dry-run`).
 1. If `dry_run=True`, skip all writes: no concept files, no `index.md` files, and no `AGENTS.md`. The result still reports planned `files_written` and any warnings/errors.
+1. Merge input frontmatter with bundler-derived fields via `_merge_input_frontmatter`.
 1. Build YAML frontmatter via `build_frontmatter`.
 1. Write transformed files and generate `index.md` per directory.
 1. Write `AGENTS.md` at output root with navigation guidance for the knowledge base (skipped when `--strict` is used).
@@ -76,6 +83,8 @@ Reason: reading APIs should not return misleading data from broken bundles.
   - Spec-conformance phase reserves `index.md`, `log.md`, `agents.md` (`SPEC_RESERVED`). `agents.md` is reserved but skipped during conformance checks (not an error).
 - Non-UTF-8 markdown is a conformance error.
 - `type` frontmatter is required and must be non-empty for non-reserved concept files.
+- Bundling preserves arbitrary producer-defined frontmatter keys; only `type`,
+  `generated`, and `okf_version` are overwritten or dropped.
 
 Source: `src/okf/core.py` (constants), `src/okf/api.py` (enforcement).
 
@@ -89,6 +98,9 @@ Major behavior shifts:
 - `.okfignore` added to allow selective exclusions without moving/deleting source files;
 - single-file conversion (`convert_file`, `convert_content`) added for programmatic use without full directory bundling;
 - `bundle()` internal logic refactored to use shared `_write_concept` helper.
+- Bundler learned to detect and merge pre-existing YAML frontmatter in source
+  markdown, preserving producer-defined fields while still setting `type` and
+  `generated` itself.
 
 Evidence: `git log -- src/okf/core.py`, `git log -- src/okf/commands/bundle.py`, top-level `git log --oneline`.
 

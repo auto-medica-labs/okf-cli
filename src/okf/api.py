@@ -17,7 +17,7 @@ from okf.core import (
     build_frontmatter,
     check_conformance,
     parse_frontmatter,
-    parse_md,
+    parse_md_with_frontmatter,
 )
 
 _LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
@@ -193,6 +193,36 @@ def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _merge_input_frontmatter(
+    existing: dict[str, Any] | None,
+    title: str,
+    description: str,
+) -> tuple[str, str, dict[str, Any]]:
+    """Apply bundler precedence to input frontmatter values.
+
+    Conflict resolution:
+    - ``type`` and ``generated`` are dropped (caller supplies them).
+    - ``okf_version`` is dropped (belongs only in the bundle-root index.md).
+    - ``title``/``description`` from input frontmatter override parsed body
+      values when present.
+    - All other keys are returned as ``extras`` to be preserved.
+    """
+    if not existing:
+        return title, description, {}
+
+    extras = dict(existing)
+    merged_title = extras.pop("title", title) if "title" in extras else title
+    merged_description = (
+        extras.pop("description", description)
+        if "description" in extras
+        else description
+    )
+    extras.pop("type", None)
+    extras.pop("generated", None)
+    extras.pop("okf_version", None)
+    return merged_title, merged_description, extras
+
+
 def _write_concept(
     title: str,
     description: str,
@@ -200,9 +230,15 @@ def _write_concept(
     output_file: Path,
     type_: str,
     generated: dict[str, str] | None,
+    existing_frontmatter: dict[str, Any] | None = None,
 ) -> None:
     """Parse content, build frontmatter, write OKF concept file."""
-    frontmatter = build_frontmatter(type_, title, description, generated)
+    merged_title, merged_description, extras = _merge_input_frontmatter(
+        existing_frontmatter, title, description
+    )
+    frontmatter = build_frontmatter(
+        type_, merged_title, merged_description, generated, extras
+    )
     if not (frontmatter.startswith("---\n") and frontmatter.endswith("\n---")):
         raise ValueError("generated invalid frontmatter")
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -239,11 +275,11 @@ def convert_file(
         raise FileNotFoundError(f"Input file '{src}' not found")
 
     text = src.read_text(encoding="utf-8")
-    title, description, body = parse_md(text)
+    existing, title, description, body = parse_md_with_frontmatter(text)
     ts = datetime.fromtimestamp(src.stat().st_mtime, tz=UTC).isoformat()
     generated = {"by": _okfcli_actor(), "at": ts}
 
-    _write_concept(title, description, body, dst, type_, generated)
+    _write_concept(title, description, body, dst, type_, generated, existing)
     return BundleResult(files_written=1, output_dir=dst.parent)
 
 
@@ -269,9 +305,9 @@ def convert_content(
         ValueError: If conversion fails.
     """
     dst = Path(output_file)
-    title, description, body = parse_md(content)
+    existing, title, description, body = parse_md_with_frontmatter(content)
 
-    _write_concept(title, description, body, dst, type_, None)
+    _write_concept(title, description, body, dst, type_, None, existing)
     return BundleResult(files_written=1, output_dir=dst.parent)
 
 
@@ -361,7 +397,7 @@ def bundle(
         errors.append("No markdown files found (excluding index.md, log.md)")
         return BundleResult(0, dst, warnings, errors)
 
-    # Link checking
+    # Parse input files and check links
     planned_rels = [f.relative_to(src) for f in md_files]
     bundle_targets = {rel.as_posix() for rel in planned_rels}
     for rel in planned_rels:
@@ -370,11 +406,20 @@ def bundle(
             grandparent = Path(*rel.parts[:i]) if i > 0 else Path(".")
             bundle_targets.add((grandparent / "index.md").as_posix())
 
+    parsed: list[tuple[Path, dict[str, Any], str, str, str, float]] = []
     link_issues: list[str] = []
+
     for f in md_files:
         rel = f.relative_to(src)
         text = f.read_text(encoding="utf-8")
-        _title, _description, body = parse_md(text)
+        try:
+            fm, title, description, body = parse_md_with_frontmatter(
+                text, strict=strict
+            )
+        except ValueError as e:
+            errors.append(f"{rel}: {e}")
+            continue
+        parsed.append((rel, fm, title, description, body, f.stat().st_mtime))
 
         seen: set[str] = set()
         for raw_target in _iter_links(body):
@@ -396,6 +441,8 @@ def bundle(
 
     warnings.extend(link_issues)
 
+    if errors:
+        return BundleResult(0, dst, warnings, errors)
     if strict and link_issues:
         errors.append("strict link check failed")
         return BundleResult(0, dst, warnings, errors)
@@ -403,8 +450,7 @@ def bundle(
     # Process files
     processed: list[tuple[Path, dict]] = []
 
-    for f in md_files:
-        rel = f.relative_to(src)
+    for rel, fm, title, description, body, mtime in parsed:
         out_file = dst / rel
 
         if rel.parent == Path("."):
@@ -412,20 +458,31 @@ def bundle(
         else:
             type_name = rel.parent.name
 
-        text = f.read_text(encoding="utf-8")
-        title, description, body = parse_md(text)
-        ts = datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat()
+        ts = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
         generated = {"by": _okfcli_actor(), "at": ts}
+
+        merged_title, merged_description, _ = _merge_input_frontmatter(
+            fm, title, description
+        )
 
         if not dry_run:
             out_file.parent.mkdir(parents=True, exist_ok=True)
             try:
-                _write_concept(title, description, body, out_file, type_name, generated)
+                _write_concept(
+                    title, description, body, out_file, type_name, generated, fm
+                )
             except ValueError as e:
                 errors.append(f"{rel}: {e}")
                 return BundleResult(len(processed), dst, warnings, errors)
         processed.append(
-            (rel, {"title": title, "description": description, "type": type_name})
+            (
+                rel,
+                {
+                    "title": merged_title,
+                    "description": merged_description,
+                    "type": type_name,
+                },
+            )
         )
 
     if not dry_run:

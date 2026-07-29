@@ -3,11 +3,15 @@
 import json
 from pathlib import Path
 
+import pytest
+import yaml
+
 from okf.core import (
     build_frontmatter,
     check_conformance,
     parse_frontmatter,
     parse_md,
+    parse_md_with_frontmatter,
     yaml_val,
 )
 
@@ -24,6 +28,11 @@ def test_yaml_val_returns_json_string():
 # --- build_frontmatter ---
 
 
+def _load_frontmatter(text: str) -> dict:
+    content = text.split("---\n", 1)[1].rsplit("\n---", 1)[0]
+    return yaml.safe_load(content)
+
+
 def test_build_frontmatter_basic():
     fm = build_frontmatter(
         "tables",
@@ -32,24 +41,23 @@ def test_build_frontmatter_basic():
         {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"},
     )
 
-    assert fm == (
-        "---\n"
-        'type: "tables"\n'
-        'title: "Orders"\n'
-        'description: "One row."\n'
-        "generated:\n"
-        '  by: "okf-cli/0.5.5"\n'
-        '  at: "2026-07-04T12:00:00"\n'
-        "---"
-    )
+    parsed = _load_frontmatter(fm)
+    assert parsed == {
+        "type": "tables",
+        "title": "Orders",
+        "description": "One row.",
+        "generated": {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"},
+    }
 
 
 def test_build_frontmatter_escapes_special_characters():
     fm = build_frontmatter("ref", "Thing: A", 'Has: colons and "quotes"', None)
 
-    assert 'title: "Thing: A"' in fm
-    assert 'description: "Has: colons and \\"quotes\\""' in fm
-    assert "generated:" not in fm
+    parsed = _load_frontmatter(fm)
+    assert parsed["type"] == "ref"
+    assert parsed["title"] == "Thing: A"
+    assert parsed["description"] == 'Has: colons and "quotes"'
+    assert "generated" not in parsed
 
 
 def test_build_frontmatter_omits_empty_title():
@@ -57,11 +65,57 @@ def test_build_frontmatter_omits_empty_title():
         "ref", "", "Desc here.", {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"}
     )
 
-    assert "title:" not in fm
-    assert 'type: "ref"' in fm
-    assert 'description: "Desc here."' in fm
-    assert 'by: "okf-cli/0.5.5"' in fm
-    assert 'at: "2026-07-04T12:00:00"' in fm
+    parsed = _load_frontmatter(fm)
+    assert "title" not in parsed
+    assert parsed["type"] == "ref"
+    assert parsed["description"] == "Desc here."
+    assert parsed["generated"] == {
+        "by": "okf-cli/0.5.5",
+        "at": "2026-07-04T12:00:00",
+    }
+
+
+def test_build_frontmatter_preserves_extras():
+    fm = build_frontmatter(
+        "ref",
+        "Title",
+        "Desc",
+        None,
+        extras={
+            "tags": ["a", "b"],
+            "resource": "https://example.com",
+            "status": "stable",
+        },
+    )
+
+    parsed = _load_frontmatter(fm)
+    assert parsed["type"] == "ref"
+    assert parsed["title"] == "Title"
+    assert parsed["description"] == "Desc"
+    assert parsed["tags"] == ["a", "b"]
+    assert parsed["resource"] == "https://example.com"
+    assert parsed["status"] == "stable"
+
+
+def test_build_frontmatter_drops_reserved_extras():
+    fm = build_frontmatter(
+        "ref",
+        "Title",
+        "Desc",
+        {"by": "okf-cli/1.0", "at": "2026-01-01T00:00:00"},
+        extras={
+            "type": "ignored",
+            "generated": {"by": "ignored", "at": "ignored"},
+            "okf_version": "0.2",
+            "custom": "kept",
+        },
+    )
+
+    parsed = _load_frontmatter(fm)
+    assert parsed["type"] == "ref"
+    assert parsed["generated"] == {"by": "okf-cli/1.0", "at": "2026-01-01T00:00:00"}
+    assert "okf_version" not in parsed
+    assert parsed["custom"] == "kept"
 
 
 # --- parse_md ---
@@ -224,3 +278,78 @@ def test_check_conformance_reports_non_utf8_files(tmp_path: Path):
 
     assert warnings == []
     assert errors == ["bad.md: file is not valid UTF-8"]
+
+
+# --- parse_md_with_frontmatter ---
+
+
+def test_parse_md_with_frontmatter_basic():
+    text = "---\ntype: ref\ntags: [a, b]\n---\n\n# Title\n\n> Desc\n\nBody."
+
+    fm, title, description, body = parse_md_with_frontmatter(text)
+
+    assert fm == {"type": "ref", "tags": ["a", "b"]}
+    assert title == "Title"
+    assert description == "Desc"
+    assert body == "Body."
+
+
+def test_parse_md_with_frontmatter_no_frontmatter():
+    text = "# Title\n\n> Desc\n\nBody."
+
+    fm, title, description, body = parse_md_with_frontmatter(text)
+
+    assert fm == {}
+    assert title == "Title"
+    assert description == "Desc"
+    assert body == "Body."
+
+
+def test_parse_md_with_frontmatter_title_override():
+    text = "---\ntitle: Frontmatter Title\n---\n\n# Body Title\n\n> Desc\n\nBody."
+
+    fm, title, description, body = parse_md_with_frontmatter(text)
+
+    assert fm == {"title": "Frontmatter Title"}
+    assert title == "Body Title"
+    assert description == "Desc"
+    assert body == "Body."
+
+
+def test_parse_md_with_frontmatter_empty_frontmatter():
+    text = "---\n---\n\n# Title\n\n> Desc\n\nBody."
+
+    fm, title, description, body = parse_md_with_frontmatter(text)
+
+    assert fm == {}
+    assert title == "Title"
+
+
+def test_parse_md_with_frontmatter_malformed_normal_fallback():
+    text = "---\ntype: [unclosed\n---\n\n# Title\n\n> Desc\n\nBody."
+
+    fm, title, description, body = parse_md_with_frontmatter(text)
+
+    assert fm == {}
+    assert "---" in body
+
+
+def test_parse_md_with_frontmatter_malformed_strict_raises():
+    text = "---\ntype: [unclosed\n---\n\n# Title\n\n> Desc\n\nBody."
+
+    with pytest.raises(ValueError, match="Malformed YAML frontmatter"):
+        parse_md_with_frontmatter(text, strict=True)
+
+
+def test_parse_md_with_frontmatter_unclosed_strict_raises():
+    text = "---\ntype: ref\n\n# Title\n\nBody."
+
+    with pytest.raises(ValueError, match="Unclosed frontmatter"):
+        parse_md_with_frontmatter(text, strict=True)
+
+
+def test_parse_md_with_frontmatter_non_dict_strict_raises():
+    text = "---\n- one\n- two\n---\n\nBody."
+
+    with pytest.raises(ValueError, match="YAML mapping"):
+        parse_md_with_frontmatter(text, strict=True)

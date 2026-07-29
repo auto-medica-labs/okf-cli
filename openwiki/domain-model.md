@@ -19,7 +19,13 @@ Markdown file with YAML frontmatter at top:
 - required for non-reserved files: `type` (non-empty string)
 - optional but common: `title`, `description`, `generated`, plus arbitrary producer-defined keys
 
-Implementation: `parse_frontmatter`, `check_conformance` in `src/okf/core.py`. API returns parsed data via `ConceptContent` dataclass.
+The bundler can also start from plain markdown that already contains a YAML
+frontmatter block. In that case it parses the existing frontmatter and merges
+it into the output concept rather than overwriting it.
+
+Implementation: `parse_frontmatter`, `parse_md_with_frontmatter`,
+`check_conformance` in `src/okf/core.py`. API returns parsed data via
+`ConceptContent` dataclass.
 
 ### Concept ID
 
@@ -67,6 +73,33 @@ Lenient (`_parse_lenient`):
 Why it exists: tolerate real-world docs that are not perfectly formatted while still producing usable bundles.
 
 Source: `src/okf/core.py`.
+
+## Frontmatter merging (bundle input)
+
+`parse_md_with_frontmatter(text, strict=False)` detects a leading `---`/`---`
+block and parses it as YAML before extracting the body via `parse_md()`.
+
+Conflict resolution when writing the output concept:
+
+| Field                   | Source of truth                        | Rationale                                                                               |
+| ----------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `type`                  | CLI `--default-type` or directory name | Bundler categorizes the concept.                                                        |
+| `generated`             | Bundler                                | Records that `okf-cli` produced this wrapper; upstream provenance belongs in `sources`. |
+| `title` / `description` | Input frontmatter > parsed body        | Author-set value wins.                                                                  |
+| `okf_version`           | Dropped                                | Only allowed in bundle-root `index.md`.                                                 |
+| Everything else         | Input frontmatter                      | Bundler cannot infer producer-defined fields.                                           |
+
+All other keys are preserved dynamically — there is no hardcoded allow-list.
+This matches §4.1 of the spec: “Producers MAY include any additional keys.
+Consumers SHOULD preserve unknown keys when round-tripping.”
+
+Malformed frontmatter:
+
+- Normal mode: falls back to treating the whole file as plain markdown.
+- `--strict` mode: raises an error and stops the bundle.
+
+Source: `src/okf/core.py::parse_md_with_frontmatter`,
+`src/okf/api.py::_merge_input_frontmatter`.
 
 ## Link checking (bundle-only)
 
