@@ -1,6 +1,6 @@
 [project]
 name = "okf-cli"
-version = "0.5.5"
+version = "0.6.0"
 description = "Open Knowledge Format tooling"
 readme = "README.md"
 license = { file = "LICENSE" }

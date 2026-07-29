@@ -38,7 +38,7 @@ def test_build_frontmatter_basic():
         "tables",
         "Orders",
         "One row.",
-        {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"},
+        {"by": "okf-cli/0.6.0", "at": "2026-07-04T12:00:00"},
     )
 
     parsed = _load_frontmatter(fm)
@@ -46,7 +46,7 @@ def test_build_frontmatter_basic():
         "type": "tables",
         "title": "Orders",
         "description": "One row.",
-        "generated": {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"},
+        "generated": {"by": "okf-cli/0.6.0", "at": "2026-07-04T12:00:00"},
     }
 
 
@@ -62,7 +62,7 @@ def test_build_frontmatter_escapes_special_characters():
 
 def test_build_frontmatter_omits_empty_title():
     fm = build_frontmatter(
-        "ref", "", "Desc here.", {"by": "okf-cli/0.5.5", "at": "2026-07-04T12:00:00"}
+        "ref", "", "Desc here.", {"by": "okf-cli/0.6.0", "at": "2026-07-04T12:00:00"}
     )
 
     parsed = _load_frontmatter(fm)
@@ -70,7 +70,7 @@ def test_build_frontmatter_omits_empty_title():
     assert parsed["type"] == "ref"
     assert parsed["description"] == "Desc here."
     assert parsed["generated"] == {
-        "by": "okf-cli/0.5.5",
+        "by": "okf-cli/0.6.0",
         "at": "2026-07-04T12:00:00",
     }
 
