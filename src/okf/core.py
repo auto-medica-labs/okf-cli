@@ -24,29 +24,40 @@ def build_frontmatter(
     title: str,
     description: str,
     generated: dict[str, str] | None = None,
+    extras: dict[str, Any] | None = None,
 ) -> str:
-    parts = [
-        "---",
-        f"type: {yaml_val(type_)}",
-    ]
+    """Render OKF concept frontmatter as a YAML block.
+
+    ``extras`` are producer-defined keys preserved from input frontmatter.
+    ``type``, ``generated``, and ``okf_version`` are ignored inside ``extras``;
+    input ``title``/``description`` should already have been applied by the
+    caller if desired.
+    """
+    data: dict[str, Any] = {"type": type_}
     if title:
-        parts.append(f"title: {yaml_val(title)}")
-    parts.append(f"description: {yaml_val(description)}")
+        data["title"] = title
+    data["description"] = description
     if generated:
-        by = generated.get("by", "")
-        at = generated.get("at", "")
-        if by and at:
-            parts.append("generated:")
-            parts.append(f"  by: {yaml_val(by)}")
-            parts.append(f"  at: {yaml_val(at)}")
-    parts.append("---")
-    return "\n".join(parts)
+        data["generated"] = generated
+    for key, value in (extras or {}).items():
+        if key in {"type", "title", "description", "generated", "okf_version"}:
+            continue
+        data[key] = value
+
+    yaml_text = yaml.safe_dump(
+        data,
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+    ).rstrip("\n")
+    return f"---\n{yaml_text}\n---"
 
 
 def _parse_strict(text: str) -> tuple[str, str, str]:
     """Parse strict: line 1 must be '# Title' followed by '>' block.
 
-    Raises ValueError on format violation.
+    The original text is returned as body so the bundled concept keeps the
+    same markdown content as the source. Raises ValueError on format violation.
     """
     lines = text.splitlines(keepends=True)
 
@@ -72,18 +83,15 @@ def _parse_strict(text: str) -> tuple[str, str, str]:
 
     description = " ".join(desc_lines).strip()
 
-    while i < len(lines) and not lines[i].strip():
-        i += 1
-
-    body = "".join(lines[i:])
-
-    return title, description, body
+    return title, description, text
 
 
 def _parse_lenient(text: str) -> tuple[str, str, str]:
     """Parse lenient: best-effort title from line 0, description from body.
 
-    Never raises.
+    The original text is returned as body so the bundled concept keeps the
+    same markdown content as the source. Description falls back to the first
+    80 characters of the text after the title line. Never raises.
     """
     lines = text.splitlines(keepends=True)
 
@@ -94,10 +102,11 @@ def _parse_lenient(text: str) -> tuple[str, str, str]:
         title = ""
         rest = text
 
-    body = rest.strip()
+    body = text
 
-    if body:
-        collapsed = " ".join(body.split())
+    rest_stripped = rest.strip()
+    if rest_stripped:
+        collapsed = " ".join(rest_stripped.split())
         desc = collapsed[:80]
         if len(collapsed) > 80:
             desc = desc.rstrip() + "..."
@@ -114,12 +123,63 @@ def parse_md(text: str) -> tuple[str, str, str]:
     Falls back to lenient: title from line 0 if present, description
     derived from first 80 chars of body.
 
+    The returned body preserves the original markdown content; only the
+    caller (e.g. ``parse_md_with_frontmatter``) strips input frontmatter.
+
     Returns (title, description, body). Never raises.
     """
     try:
         return _parse_strict(text)
     except ValueError:
         return _parse_lenient(text)
+
+
+def parse_md_with_frontmatter(
+    text: str,
+    *,
+    strict: bool = False,
+) -> tuple[dict[str, Any], str, str, str]:
+    """Parse frontmatter, title, description, and body from markdown.
+
+    If the file starts with ``---``, the region up to the next ``---`` on its
+    own line is parsed as YAML frontmatter and stripped before ``parse_md()``
+    sees the body.
+
+    In normal mode a malformed or unclosed frontmatter block falls back to
+    treating the whole file as plain markdown. In ``strict`` mode it raises
+    ``ValueError``.
+
+    Returns (frontmatter_dict, title, description, body). ``frontmatter_dict``
+    is empty when there is no parseable frontmatter.
+    """
+    if not text.startswith("---"):
+        return {}, *parse_md(text)
+
+    lines = text.split("\n")
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            content = "\n".join(lines[1:i])
+            try:
+                frontmatter = yaml.safe_load(content)
+            except yaml.YAMLError as exc:
+                if strict:
+                    raise ValueError(f"Malformed YAML frontmatter: {exc}") from exc
+                return {}, *parse_md(text)
+
+            if frontmatter is None:
+                frontmatter = {}
+            elif not isinstance(frontmatter, dict):
+                if strict:
+                    raise ValueError("Frontmatter must be a YAML mapping")
+                return {}, *parse_md(text)
+
+            body_source = "\n".join(lines[i + 1 :]).lstrip("\n")
+            title, description, body = parse_md(body_source)
+            return frontmatter, title, description, body
+
+    if strict:
+        raise ValueError("Unclosed frontmatter block")
+    return {}, *parse_md(text)
 
 
 def parse_frontmatter(text: str) -> dict[str, Any] | None:

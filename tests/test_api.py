@@ -17,6 +17,7 @@ from okf.api import (
     show_concept,
     validate,
 )
+from okf.core import parse_frontmatter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -28,6 +29,10 @@ def _write(dir_path: Path, files: dict[str, str]) -> None:
         p = dir_path / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
+
+
+def _read_frontmatter(path: Path) -> dict:
+    return parse_frontmatter(path.read_text(encoding="utf-8")) or {}
 
 
 # ---------------------------------------------------------------------------
@@ -66,15 +71,14 @@ class TestBundle:
         _write(src, {"tables/a.md": "# A\n\n> Desc A.\n\nBody."})
 
         bundle(src, dst)
-        text = (dst / "tables" / "a.md").read_text()
+        fm = _read_frontmatter(dst / "tables" / "a.md")
 
-        assert text.startswith("---\n")
-        assert 'type: "tables"' in text
-        assert 'title: "A"' in text
-        assert 'description: "Desc A."' in text
-        assert "generated:" in text
-        assert "by:" in text
-        assert "at:" in text
+        assert fm["type"] == "tables"
+        assert fm["title"] == "A"
+        assert fm["description"] == "Desc A."
+        assert isinstance(fm["generated"], dict)
+        assert "by" in fm["generated"]
+        assert "at" in fm["generated"]
 
     def test_frontmatter_valid_yaml(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -266,8 +270,8 @@ class TestBundle:
         result = bundle(src, dst, default_type="reference")
 
         assert result.files_written == 2
-        assert 'type: "reference"' in (dst / "domain.md").read_text()
-        assert 'type: "tables"' in (dst / "tables" / "data.md").read_text()
+        assert _read_frontmatter(dst / "domain.md")["type"] == "reference"
+        assert _read_frontmatter(dst / "tables" / "data.md")["type"] == "tables"
 
     def test_root_type_from_input_dir(self, tmp_path: Path):
         src = tmp_path / "notes"
@@ -277,7 +281,7 @@ class TestBundle:
 
         bundle(src, dst)
 
-        assert 'type: "notes"' in (dst / "domain.md").read_text()
+        assert _read_frontmatter(dst / "domain.md")["type"] == "notes"
 
     def test_warns_broken_link(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -430,9 +434,9 @@ class TestBundle:
 
         bundle(src, dst)
 
-        content = (dst / "tables" / "a.md").read_text()
-        assert 'title: "Has Title"' in content
-        assert "description:" in content
+        fm = _read_frontmatter(dst / "tables" / "a.md")
+        assert fm["title"] == "Has Title"
+        assert "description" in fm
 
     def test_lenient_no_title(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -442,9 +446,9 @@ class TestBundle:
 
         bundle(src, dst)
 
-        content = (dst / "tables" / "a.md").read_text()
-        assert "title:" not in content
-        assert 'type: "tables"' in content
+        fm = _read_frontmatter(dst / "tables" / "a.md")
+        assert "title" not in fm
+        assert fm["type"] == "tables"
 
     def test_lenient_no_heading(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -545,6 +549,248 @@ class TestBundle:
         assert result.files_written == 0
         assert any("strict link check failed" in e.lower() for e in result.errors)
         assert not dst.exists()
+
+    def test_preserves_input_frontmatter_fields(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\n"
+                    "tags: [sales, orders]\n"
+                    "resource: https://example.com/orders\n"
+                    "---\n\n"
+                    "# Orders\n\n> One row.\n\nBody."
+                )
+            },
+        )
+
+        bundle(src, dst)
+
+        fm = _read_frontmatter(dst / "tables" / "orders.md")
+        assert fm["type"] == "tables"
+        assert fm["tags"] == ["sales", "orders"]
+        assert fm["resource"] == "https://example.com/orders"
+
+    def test_preserves_provenance_trust_lifecycle_fields(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\n"
+                    "sources:\n"
+                    "  - id: policy\n"
+                    "    resource: https://example.com/policy\n"
+                    "verified:\n"
+                    "  by: human:ahormati\n"
+                    '  at: "2026-06-25T09:00:00Z"\n'
+                    "status: stable\n"
+                    'stale_after: "2026-09-23"\n'
+                    'usage_window: {from: "2026-06-01", to: "2026-06-30"}\n'
+                    "---\n\n"
+                    "# Orders\n\n> One row.\n\nBody."
+                )
+            },
+        )
+
+        bundle(src, dst)
+
+        fm = _read_frontmatter(dst / "tables" / "orders.md")
+        assert fm["sources"] == [
+            {"id": "policy", "resource": "https://example.com/policy"}
+        ]
+        assert fm["verified"] == {"by": "human:ahormati", "at": "2026-06-25T09:00:00Z"}
+        assert fm["status"] == "stable"
+        assert fm["stale_after"] == "2026-09-23"
+        assert fm["usage_window"] == {"from": "2026-06-01", "to": "2026-06-30"}
+
+    def test_preserves_attested_computation_fields(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "computations/revenue.md": (
+                    "---\n"
+                    "runtime: bigquery\n"
+                    "parameters:\n"
+                    "  - {name: year, type: integer, required: true}\n"
+                    "computation: references/computations/revenue.sql\n"
+                    "executor:\n"
+                    "  resource: references/skills/run-on-bq.md\n"
+                    "  receipt: [job_id, executed_sql, result]\n"
+                    "attester:\n"
+                    "  resource: references/attesters/revenue.py\n"
+                    "---\n\n"
+                    "# Revenue\n\n> Compute revenue.\n\nSELECT 1."
+                )
+            },
+        )
+
+        bundle(src, dst)
+
+        fm = _read_frontmatter(dst / "computations" / "revenue.md")
+        assert fm["type"] == "computations"
+        assert fm["runtime"] == "bigquery"
+        assert fm["parameters"] == [
+            {"name": "year", "type": "integer", "required": True}
+        ]
+        assert fm["computation"] == "references/computations/revenue.sql"
+        assert fm["executor"] == {
+            "resource": "references/skills/run-on-bq.md",
+            "receipt": ["job_id", "executed_sql", "result"],
+        }
+        assert fm["attester"] == {"resource": "references/attesters/revenue.py"}
+
+    def test_input_title_description_override_parsed_body(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\n"
+                    "title: Frontmatter Title\n"
+                    "description: Frontmatter description.\n"
+                    "---\n\n"
+                    "# Body Title\n\n> Body description.\n\nBody."
+                )
+            },
+        )
+
+        bundle(src, dst)
+
+        fm = _read_frontmatter(dst / "tables" / "orders.md")
+        assert fm["title"] == "Frontmatter Title"
+        assert fm["description"] == "Frontmatter description."
+
+    def test_cli_type_overrides_input_type(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\ntype: ignored\n---\n\n# Orders\n\n> One row.\n\nBody."
+                )
+            },
+        )
+
+        bundle(src, dst)
+
+        fm = _read_frontmatter(dst / "tables" / "orders.md")
+        assert fm["type"] == "tables"
+
+    def test_generated_is_always_overwritten(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\n"
+                    "generated: {by: old/actor, at: 2020-01-01T00:00:00Z}\n"
+                    "---\n\n"
+                    "# Orders\n\n> One row.\n\nBody."
+                )
+            },
+        )
+
+        bundle(src, dst)
+
+        fm = _read_frontmatter(dst / "tables" / "orders.md")
+        assert fm["generated"]["by"].startswith("okf-cli/")
+        assert "2020-01-01" not in fm["generated"]["at"]
+
+    def test_okf_version_dropped_from_concept_files(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\n"
+                    "okf_version: '0.2'\n"
+                    "tags: [sales]\n"
+                    "---\n\n"
+                    "# Orders\n\n> One row.\n\nBody."
+                )
+            },
+        )
+
+        bundle(src, dst)
+
+        fm = _read_frontmatter(dst / "tables" / "orders.md")
+        assert "okf_version" not in fm
+        assert fm["tags"] == ["sales"]
+
+    def test_malformed_frontmatter_normal_mode_fallback(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\ntype: [unclosed\n---\n\n# Orders\n\n> One row.\n\nBody."
+                )
+            },
+        )
+
+        result = bundle(src, dst)
+
+        assert result.errors == []
+        assert result.files_written == 1
+        text = (dst / "tables" / "orders.md").read_text()
+        assert "type: tables" in text
+
+    def test_malformed_frontmatter_strict_mode_fails(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\ntype: [unclosed\n---\n\n# Orders\n\n> One row.\n\nBody."
+                )
+            },
+        )
+
+        result = bundle(src, dst, strict=True)
+
+        assert result.files_written == 0
+        assert any("Malformed YAML frontmatter" in e for e in result.errors)
+
+    def test_frontmatter_body_links_still_checked(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "---\n"
+                    "tags: [sales]\n"
+                    "---\n\n"
+                    "# Orders\n\n> One row.\n\nSee [C](customers.md)."
+                )
+            },
+        )
+
+        result = bundle(src, dst)
+
+        assert any("not found in bundle" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -1128,15 +1374,14 @@ class TestConvertFile:
         src.write_text("# Orders\n\n> One row per order.\n\nBody.", encoding="utf-8")
 
         convert_file(src, dst, type_="tables")
-        text = dst.read_text()
+        fm = _read_frontmatter(dst)
 
-        assert text.startswith("---\n")
-        assert 'type: "tables"' in text
-        assert 'title: "Orders"' in text
-        assert 'description: "One row per order."' in text
-        assert "generated:" in text
-        assert "by:" in text
-        assert "at:" in text
+        assert fm["type"] == "tables"
+        assert fm["title"] == "Orders"
+        assert fm["description"] == "One row per order."
+        assert isinstance(fm["generated"], dict)
+        assert "by" in fm["generated"]
+        assert "at" in fm["generated"]
 
     def test_frontmatter_valid_yaml(self, tmp_path: Path):
         src = tmp_path / "input.md"
@@ -1182,8 +1427,44 @@ class TestConvertFile:
         convert_file(src, dst, type_="ref")
         text = dst.read_text()
 
-        assert 'type: "ref"' in text
+        assert _read_frontmatter(dst)["type"] == "ref"
         assert "Just some text." in text
+
+    def test_preserves_input_frontmatter(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "output.md"
+        src.write_text(
+            "---\n"
+            "tags: [a, b]\n"
+            "resource: https://example.com\n"
+            "---\n\n"
+            "# Title\n\n> Desc.\n\nBody.",
+            encoding="utf-8",
+        )
+
+        convert_file(src, dst, type_="ref")
+        fm = _read_frontmatter(dst)
+
+        assert fm["type"] == "ref"
+        assert fm["tags"] == ["a", "b"]
+        assert fm["resource"] == "https://example.com"
+        assert "generated" in fm
+
+    def test_overwrites_input_generated(self, tmp_path: Path):
+        src = tmp_path / "input.md"
+        dst = tmp_path / "output.md"
+        src.write_text(
+            "---\n"
+            "generated: {by: old, at: 2020-01-01T00:00:00Z}\n"
+            "---\n\n"
+            "# Title\n\n> Desc.\n\nBody.",
+            encoding="utf-8",
+        )
+
+        convert_file(src, dst, type_="ref")
+        fm = _read_frontmatter(dst)
+
+        assert fm["generated"]["by"].startswith("okf-cli/")
 
 
 # ---------------------------------------------------------------------------
@@ -1207,13 +1488,12 @@ class TestConvertContent:
         content = "# Orders\n\n> One row per order.\n\nBody."
 
         convert_content(content, dst, type_="tables")
-        text = dst.read_text()
+        fm = _read_frontmatter(dst)
 
-        assert text.startswith("---\n")
-        assert 'type: "tables"' in text
-        assert 'title: "Orders"' in text
-        assert 'description: "One row per order."' in text
-        assert "generated" not in text
+        assert fm["type"] == "tables"
+        assert fm["title"] == "Orders"
+        assert fm["description"] == "One row per order."
+        assert "generated" not in fm
 
     def test_body_preserved(self, tmp_path: Path):
         dst = tmp_path / "output.md"
@@ -1237,5 +1517,37 @@ class TestConvertContent:
         convert_content("Just some text.", dst, type_="ref")
         text = dst.read_text()
 
-        assert 'type: "ref"' in text
+        assert _read_frontmatter(dst)["type"] == "ref"
         assert "Just some text." in text
+
+    def test_preserves_input_frontmatter(self, tmp_path: Path):
+        dst = tmp_path / "output.md"
+        content = (
+            "---\n"
+            "tags: [a, b]\n"
+            "resource: https://example.com\n"
+            "---\n\n"
+            "# Title\n\n> Desc.\n\nBody."
+        )
+
+        convert_content(content, dst, type_="ref")
+        fm = _read_frontmatter(dst)
+
+        assert fm["type"] == "ref"
+        assert fm["tags"] == ["a", "b"]
+        assert fm["resource"] == "https://example.com"
+        assert "generated" not in fm
+
+    def test_drops_input_generated(self, tmp_path: Path):
+        dst = tmp_path / "output.md"
+        content = (
+            "---\n"
+            "generated: {by: old, at: 2020-01-01T00:00:00Z}\n"
+            "---\n\n"
+            "# Title\n\n> Desc.\n\nBody."
+        )
+
+        convert_content(content, dst, type_="ref")
+        fm = _read_frontmatter(dst)
+
+        assert "generated" not in fm

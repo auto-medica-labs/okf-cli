@@ -14,6 +14,25 @@ Expected strict shape (best quality output):
 Body...
 ```
 
+Authors may also put OKF frontmatter directly in the source markdown. The
+bundler will detect, parse, and merge those fields instead of overwriting them:
+
+```markdown
+---
+tags: [finance, revenue]
+status: stable
+verified:
+  by: human:ahormati
+  at: "2026-06-25T09:00:00Z"
+---
+
+# Title
+
+> One-line description
+
+Body...
+```
+
 Lenient fallback exists for imperfect files, but strict shape gives better metadata (`src/okf/core.py::parse_md`).
 
 ### 2) Bundle to OKF
@@ -29,7 +48,10 @@ Important behavior:
 - Root-level markdown uses input directory name as type if `--default-type` not specified.
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
 - `.okfignore` in input root can skip exact bundle-relative paths.
-- `--strict` enforces strict OKF spec output: fails on broken local `.md` links and skips `AGENTS.md` generation.
+- Pre-existing YAML frontmatter in source files is merged into the output concept:
+  `type`, `generated`, and `okf_version` are overwritten/dropped; everything else
+  is preserved dynamically.
+- `--strict` enforces strict OKF spec output: fails on broken local `.md` links, malformed input frontmatter, and skips `AGENTS.md` generation.
 - `--dry-run` validates the source and reports warnings/errors without writing files or directories; existing output is left untouched even if `--force` is passed.
 - `AGENTS.md` is generated at output root with navigation guidance (unless `--strict` or `--dry-run` is used).
 
