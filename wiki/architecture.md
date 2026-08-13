@@ -27,7 +27,7 @@ Public functions and return types:
 | `show_concept(bundle_dir, concept_id)`                                   | `ConceptContent` | Conformance-gated concept read with path traversal guard                                                                       |
 | `validate(bundle_dir)`                                                   | `ValidateResult` | Conformance check with `.ok` property                                                                                          |
 
-Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_generate_indexes`, `_write_concept`.
+Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_generate_indexes`, `_merge_input_frontmatter`, `_write_concept`.
 
 ### `src/okf/core.py` — shared utilities
 

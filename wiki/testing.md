@@ -3,16 +3,16 @@
 ## Test suite map
 
 - API unit/integration tests: `tests/test_api.py`
-  - `TestBundle` — bundling via `api.bundle()`, link checking, `.okfignore`, lenient parsing, `AGENTS.md` generation
+  - `TestBundle` — bundling via `api.bundle()`, input frontmatter merging, link checking, `.okfignore`, lenient parsing, `AGENTS.md` generation
   - `TestListConcepts` — listing via `api.list_concepts()`, reserved file handling
   - `TestListEntries` — listing metadata via `api.list_entries()` (ID, type, title, description)
   - `TestShowConcept` — reading via `api.show_concept()`, path traversal guard
   - `TestValidate` — conformance checks via `api.validate()`, all §11 rule variants
   - `TestWorkflow` — cross-command pipeline (bundle → validate/list/read)
-  - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime `generated` block
-  - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no `generated` block
+  - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime `generated` block, input frontmatter preservation
+  - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no `generated` block, input frontmatter preservation
 - Core unit tests: `tests/test_core.py`
-  - parsing helpers (`parse_md`, `parse_frontmatter`)
+  - parsing helpers (`parse_md`, `parse_md_with_frontmatter`, `parse_frontmatter`)
   - frontmatter generation (`build_frontmatter`)
   - conformance engine (`check_conformance`)
 - CLI integration tests: `tests/test_cli.py`
@@ -69,6 +69,7 @@ uv run pytest -q
 
 - `.okfignore` parsing and skip semantics, including non-UTF-8 failure.
 - Lenient parsing fallback when strict markdown format is missing.
+- Input frontmatter merging precedence: `type`/`generated` overwritten, `okf_version` dropped, input `title`/`description` override parsed body, malformed frontmatter fallback (normal) vs fatal (`--strict`).
 - Reserved filename differences between bundling and spec conformance.
 - Root `index.md` special allowance for `okf_version` only.
 - `list`/`read` hard failure on non-conformant bundles.
