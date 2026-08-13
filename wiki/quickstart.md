@@ -1,4 +1,4 @@
-# okf-cli OpenWiki quickstart
+# okf-cli Wiki quickstart
 
 `okf-cli` converts plain markdown directories into Open Knowledge Format (OKF) bundles, then validates and reads those bundles.
 
@@ -58,7 +58,7 @@ Why this sequence:
 1. `--strict` catches broken local `.md` references at bundle time and skips `AGENTS.md` generation.
 1. `--dry-run` validates the source and reports warnings/errors without writing any files.
 
-## OpenWiki map
+## Wiki map
 
 - [Architecture](architecture.md) — runtime shape, command wiring, extension points.
 - [Workflows](workflows.md) — day-to-day CLI and contributor workflows.
@@ -70,4 +70,4 @@ Why this sequence:
 
 - Add/modify CLI behavior: start at [Architecture](architecture.md), then [Testing](testing.md).
 - Change format/conformance rules: start at [Domain model](domain-model.md), then `src/okf/core.py` + validate/list/show tests.
-- Update docs/user guidance: check `README.md` and align with this OpenWiki.
+- Update docs/user guidance: check `README.md` and align with this Wiki.

@@ -38,6 +38,6 @@ uv run okf read example_knowledge_base tables/customers
 
 ## Documentation
 
-- Detailed user and contributor docs: [openwiki/quickstart.md](openwiki/quickstart.md)
+- Detailed user and contributor docs: [wiki/quickstart.md](wiki/quickstart.md)
 - Agent contributor context: [AGENTS.md](AGENTS.md)
 - OKF v0.2 specification: [SPEC/OKF_SPEC_V0_2.md](SPEC/OKF_SPEC_V0_2.md)

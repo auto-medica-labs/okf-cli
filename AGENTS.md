@@ -1,16 +1,16 @@
 # AGENTS.md — okf-cli contributor context
 
-## OpenWiki
+## Wiki
 
-This repository has documentation located in the /openwiki directory.
+This repository has documentation located in the /wiki directory.
 
 Start here:
 
-- [OpenWiki quickstart](openwiki/quickstart.md)
+- [Wiki quickstart](wiki/quickstart.md)
 
-OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+Wiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
 
-When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
+When working in this repository, read the Wiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
 
 ## Tech stack
 
@@ -23,7 +23,7 @@ Python 3.11+, **uv**, **typer**, **pyyaml**, **rich**, **pytest**, **ruff**, **h
 - `src/okf/core.py` — shared parsing, formatting, and conformance helpers
 - `src/okf/commands/` — thin CLI wrappers (`bundle`, `list`, `read`, `validate`)
 - `tests/` — `test_api.py`, `test_cli.py`, `test_core.py`
-- `openwiki/` — architecture, workflows, domain model, operations, testing notes
+- `wiki/` — architecture, workflows, domain model, operations, testing notes
 - `.github/workflows/test.yml` — CI (pytest + ruff on Python 3.11)
 
 ## Common tasks
