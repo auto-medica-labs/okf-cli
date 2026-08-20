@@ -146,6 +146,27 @@ def _is_ignored(rel_posix: str, ignored: set[str]) -> bool:
     return any(pat.endswith("/") and rel_posix.startswith(pat) for pat in ignored)
 
 
+def _copy_assets(src: Path, dst: Path, ignored: set[str]) -> int:
+    """Copy non-.md assets (e.g. .py, .sql) from src to dst.
+
+    Skips ``.md`` files (already processed as concepts), ``.okfignore``,
+    and any path listed in ``ignored``. Returns count of copied files.
+    """
+    copied = 0
+    for item in src.rglob("*"):
+        if not item.is_file():
+            continue
+        rel = item.relative_to(src).as_posix()
+        if item.suffix == ".md" or _is_ignored(rel, ignored) or item.name == ".okfignore":
+            continue
+        target = dst / item.relative_to(src)
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
+            copied += 1
+    return copied
+
+
 def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
     """Generate index.md for every directory with concept files or subdirs."""
     dir_files: dict[Path, list[dict]] = {}
@@ -502,6 +523,11 @@ def bundle(
         _generate_indexes(processed, dst)
 
     # Write AGENTS.md (skipped in strict mode)
+    files_written = len(processed)
+
+    if not dry_run:
+        files_written += _copy_assets(src, dst, ignored)
+
     if not dry_run and not strict:
         (dst / "AGENTS.md").write_text(
             f"# Knowledge Base: {dst.name}\n\n"
@@ -528,7 +554,7 @@ def bundle(
         )
 
     return BundleResult(
-        files_written=len(processed),
+        files_written=files_written,
         output_dir=dst,
         warnings=warnings,
         errors=errors,
