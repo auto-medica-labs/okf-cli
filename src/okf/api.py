@@ -129,8 +129,21 @@ def _load_okfignore(src: Path) -> set[str]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        entries.add(line.lstrip("./"))
+        entry = line.lstrip("./")
+        # Normalize folder globs: tables/foo/*, tables/foo/** -> tables/foo/
+        if entry.endswith("/**"):
+            entry = entry[:-3] + "/"
+        elif entry.endswith("/*"):
+            entry = entry[:-2] + "/"
+        entries.add(entry)
     return entries
+
+
+def _is_ignored(rel_posix: str, ignored: set[str]) -> bool:
+    """Check exact match or folder-prefix match (entries ending with /)."""
+    if rel_posix in ignored:
+        return True
+    return any(pat.endswith("/") and rel_posix.startswith(pat) for pat in ignored)
 
 
 def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
@@ -383,7 +396,7 @@ def bundle(
         rel = f.relative_to(src)
         rel_posix = rel.as_posix()
 
-        if rel_posix in ignored:
+        if _is_ignored(rel_posix, ignored):
             warnings.append(f"Skipping {rel} — matched .okfignore")
             continue
         if f.name.lower() in RESERVED:
