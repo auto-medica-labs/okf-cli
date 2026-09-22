@@ -157,7 +157,11 @@ def _copy_assets(src: Path, dst: Path, ignored: set[str]) -> int:
         if not item.is_file():
             continue
         rel = item.relative_to(src).as_posix()
-        if item.suffix == ".md" or _is_ignored(rel, ignored) or item.name == ".okfignore":
+        if (
+            item.suffix == ".md"
+            or _is_ignored(rel, ignored)
+            or item.name == ".okfignore"
+        ):
             continue
         target = dst / item.relative_to(src)
         if not target.exists():
