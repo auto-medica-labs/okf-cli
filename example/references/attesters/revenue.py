@@ -7,7 +7,6 @@ Receipt shape: {job_id: str, executed_sql: str, result: list[dict]}
 """
 
 import json
-import re
 import sys
 
 
