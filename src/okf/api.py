@@ -146,10 +146,17 @@ def _is_ignored(rel_posix: str, ignored: set[str]) -> bool:
     return any(pat.endswith("/") and rel_posix.startswith(pat) for pat in ignored)
 
 
-def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
-    """Generate index.md for every directory with concept files or subdirs."""
+def _generate_indexes(
+    processed: list[tuple[Path, dict]], dst: Path, *, overwrite: bool = False
+) -> int:
+    """Generate index.md for every directory with concept files or subdirs.
+
+    Returns the number of index files written. Existing index files are kept
+    unless ``overwrite`` is true.
+    """
     dir_files: dict[Path, list[dict]] = {}
     dir_subdirs: dict[Path, set[str]] = {}
+    written = 0
 
     for rel, meta in processed:
         parent = rel.parent
@@ -167,7 +174,7 @@ def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
 
     for dir_path in sorted(set(dir_files.keys()) | set(dir_subdirs.keys())):
         index_path = dst / dir_path / "index.md"
-        if index_path.exists():
+        if index_path.exists() and not overwrite:
             continue
 
         lines: list[str] = []
@@ -199,6 +206,9 @@ def _generate_indexes(processed: list[tuple[Path, dict]], dst: Path) -> None:
         if lines:
             index_path.parent.mkdir(parents=True, exist_ok=True)
             index_path.write_text("\n".join(lines), encoding="utf-8")
+            written += 1
+
+    return written
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +543,37 @@ def bundle(
         warnings=warnings,
         errors=errors,
     )
+
+
+def reindex(bundle_dir: str | Path) -> BundleResult:
+    """Rebuild every index.md in a bundle from the concept files on disk.
+
+    Args:
+        bundle_dir: Path to an OKF bundle directory.
+
+    Returns:
+        BundleResult with ``files_written`` set to the number of index files
+        written and ``output_dir`` set to ``bundle_dir``.
+
+    Raises:
+        NotADirectoryError: If bundle_dir is not a directory.
+        ValueError: If the directory is not a conformant OKF bundle.
+    """
+    dst = Path(bundle_dir)
+    entries = list_entries(dst)
+    processed = [
+        (
+            Path(e["id"] + ".md"),
+            {
+                "title": e["title"],
+                "description": e["description"],
+                "type": e["type"],
+            },
+        )
+        for e in entries
+    ]
+    count = _generate_indexes(processed, dst, overwrite=True)
+    return BundleResult(files_written=count, output_dir=dst)
 
 
 def _iter_concept_files(dir_path: Path):
