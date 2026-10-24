@@ -30,6 +30,7 @@ from okf.api import (
     convert_file,
     convert_content,
     list_concepts,
+    reindex,
     show_concept,
     validate,
 )
@@ -48,6 +49,9 @@ print(concept.body)
 
 report = validate("out")
 assert report.ok
+
+# After adding concepts directly, rebuild the index.md files in place.
+reindex("out")  # API-only; no `okf reindex` command
 ```
 
 Why this sequence:
@@ -57,6 +61,7 @@ Why this sequence:
 1. `list`/`show` operate only on conformant bundles.
 1. `--strict` catches broken local `.md` references at bundle time and skips `AGENTS.md` generation.
 1. `--dry-run` validates the source and reports warnings/errors without writing any files.
+1. `reindex` refreshes `index.md` files after concepts were added directly, so the bundle stays navigable.
 
 ## Wiki map
 

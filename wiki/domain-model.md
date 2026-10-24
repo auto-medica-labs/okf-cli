@@ -117,12 +117,30 @@ Source: `src/okf/api.py` (`_iter_links`, `_resolve_md_target`).
 ## `.okfignore` model (bundle-only)
 
 - file location: `<input-dir>/.okfignore`
-- syntax: one exact bundle-relative markdown path per line
+- syntax: one bundle-relative markdown path or folder per line
 - ignores blank lines and `#` comments
-- no glob/negation semantics
 - non-UTF-8 `.okfignore` fails bundling
 
-Source: `_load_okfignore` in `src/okf/api.py`; example file: `example/.okfignore`.
+Two entry forms, matched by `_is_ignored`:
+
+| Entry form              | Matches                                                |
+| ----------------------- | ------------------------------------------------------ |
+| `tables/orders.md`      | that exact bundle-relative path only                   |
+| `tables/partitions/`    | every `.md` under that folder, at any depth            |
+| `tables/partitions/*`   | same as above (`/*` normalized away)                   |
+| `tables/partitions/**`  | same as above (`/**` normalized away)                  |
+
+Why the normalization: `_load_okfignore` rewrites a trailing `/*` or `/**` to
+`/`, so all three folder spellings collapse to one prefix rule. Folder
+matching is a pure string prefix test, so `tables/partitions/` matches
+`tables/partitions/2026/jan/january.md` but not a sibling file named
+`tables/partitions.md`.
+
+There is still no negation (`!`) support, and a bare `*` inside a segment
+(e.g. `tables/*.md`) is not a wildcard — it is only special as the final
+`/*` or `/**` suffix.
+
+Source: `_load_okfignore`, `_is_ignored` in `src/okf/api.py`; example file: `example/.okfignore`.
 
 ## Bundle output artifacts
 
@@ -132,7 +150,13 @@ Each bundle run produces:
 - `index.md` per directory listing contents and subdirs
 - `AGENTS.md` at output root: navigation guide for AI agents and humans (references `index.md`, explains frontmatter and cross-links); omitted in `--strict` mode
 
-Source: `src/okf/api.py` (`_write_concept`, `_generate_indexes`, `bundle`).
+`index.md` files are derived data — they are regenerated from the concept files
+present on disk, not treated as authored content. `reindex()` rebuilds them in
+place, which is how a bundle stays navigable after concepts are added directly
+(e.g. via `convert_content`) rather than through a full `bundle()` run. The
+bundle-root `index.md` keeps its `okf_version` frontmatter across a reindex.
+
+Source: `src/okf/api.py` (`_write_concept`, `_generate_indexes`, `bundle`, `reindex`).
 
 ## Conformance rules enforced
 
