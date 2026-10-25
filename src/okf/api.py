@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import posixpath
 import re
 import shutil
+import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version as _package_version
@@ -144,6 +146,47 @@ def _is_ignored(rel_posix: str, ignored: set[str]) -> bool:
     if rel_posix in ignored:
         return True
     return any(pat.endswith("/") and rel_posix.startswith(pat) for pat in ignored)
+
+
+def _path_exists(path: Path) -> bool:
+    """Return true for paths including dangling symlinks."""
+    return path.exists() or path.is_symlink()
+
+
+def _remove_path(path: Path) -> None:
+    """Remove a file, symlink, or directory without following symlinks."""
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def _commit_staged_bundle(staged: Path, dst: Path) -> bool:
+    """Replace ``dst`` with a fully built staging directory.
+
+    The previous output is moved aside only at commit time and restored if
+    promoting the staged bundle fails. Returns whether an output was replaced.
+    """
+    backup: Path | None = None
+    if _path_exists(dst):
+        fd, backup_name = tempfile.mkstemp(
+            prefix=f".{dst.name or 'okf'}.backup-", dir=dst.parent
+        )
+        os.close(fd)
+        backup = Path(backup_name)
+        backup.unlink()
+        os.replace(dst, backup)
+
+    try:
+        os.replace(staged, dst)
+    except BaseException:
+        if backup is not None:
+            os.replace(backup, dst)
+        raise
+
+    if backup is not None:
+        _remove_path(backup)
+    return backup is not None
 
 
 def _generate_indexes(
@@ -354,7 +397,7 @@ def bundle(
         input_dir: Source directory of plain markdown files.
         output_dir: Target directory. Defaults to ``<input-dir>_knowledge_base``.
         default_type: Concept type for root-level files.
-        force: Overwrite output directory if it exists.
+        force: Replace an existing output only after a complete staged build.
         strict: Enforce strict OKF spec output: fail on broken local .md
             links and skip AGENTS.md generation.
         dry_run: Validate and report what would be written without creating
@@ -384,15 +427,13 @@ def bundle(
     else:
         raise ValueError("Output directory must not be inside input directory")
 
-    if dst.exists():
-        if not dry_run and not force:
-            raise FileExistsError(
-                f"Output directory '{dst}' exists. Use --force to overwrite."
-            )
-        if force:
-            if not dry_run:
-                shutil.rmtree(dst)
-            warnings.append(f"Removed existing '{dst}'")
+    output_exists = _path_exists(dst)
+    if output_exists and not dry_run and not force:
+        raise FileExistsError(
+            f"Output directory '{dst}' exists. Use --force to overwrite."
+        )
+    if output_exists and force and dry_run:
+        warnings.append(f"Would replace existing '{dst}'")
 
     try:
         ignored = _load_okfignore(src)
@@ -470,72 +511,90 @@ def bundle(
         errors.append("strict link check failed")
         return BundleResult(0, dst, warnings, errors)
 
-    # Process files
+    # Build in a temporary sibling directory so failures never destroy the
+    # existing output. Rename into place only after all bundle files are ready.
     processed: list[tuple[Path, dict]] = []
-
-    for rel, fm, title, description, body, mtime in parsed:
-        out_file = dst / rel
-
-        if rel.parent == Path("."):
-            type_name = default_type or src.name
-        else:
-            type_name = rel.parent.name
-
-        ts = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
-        generated = {"by": _okfcli_actor(), "at": ts}
-
-        merged_title, merged_description, _ = _merge_input_frontmatter(
-            fm, title, description
+    staging_dir: Path | None = None
+    build_dir = dst
+    if not dry_run:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        staging_dir = Path(
+            tempfile.mkdtemp(prefix=f".{dst.name or 'okf'}.staging-", dir=dst.parent)
         )
+        build_dir = staging_dir
+
+    try:
+        for rel, fm, title, description, body, mtime in parsed:
+            out_file = build_dir / rel
+
+            if rel.parent == Path("."):
+                type_name = default_type or src.name
+            else:
+                type_name = rel.parent.name
+
+            ts = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
+            generated = {"by": _okfcli_actor(), "at": ts}
+
+            merged_title, merged_description, _ = _merge_input_frontmatter(
+                fm, title, description
+            )
+
+            if not dry_run:
+                out_file.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    _write_concept(
+                        title, description, body, out_file, type_name, generated, fm
+                    )
+                except ValueError as e:
+                    errors.append(f"{rel}: {e}")
+                    return BundleResult(len(processed), dst, warnings, errors)
+            processed.append(
+                (
+                    rel,
+                    {
+                        "title": merged_title,
+                        "description": merged_description,
+                        "type": type_name,
+                    },
+                )
+            )
 
         if not dry_run:
-            out_file.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                _write_concept(
-                    title, description, body, out_file, type_name, generated, fm
-                )
-            except ValueError as e:
-                errors.append(f"{rel}: {e}")
-                return BundleResult(len(processed), dst, warnings, errors)
-        processed.append(
-            (
-                rel,
-                {
-                    "title": merged_title,
-                    "description": merged_description,
-                    "type": type_name,
-                },
+            _generate_indexes(processed, build_dir)
+
+        # Write AGENTS.md (skipped in strict mode)
+        if not dry_run and not strict:
+            (build_dir / "AGENTS.md").write_text(
+                f"# Knowledge Base: {dst.name}\n\n"
+                f"You are in an OKF (Open Knowledge Format) knowledge base called "
+                f"**{dst.name}**. OKF is a structured markdown format where each "
+                f"`.md` file is a concept with YAML frontmatter and cross-links "
+                f"between related concepts.\n\n"
+                "## Instructions\n\n"
+                "- **Answer from this knowledge base only.** Use the concepts and "
+                "links here as your source of truth.\n"
+                "- **If the answer is not in the knowledge base, say so directly.** "
+                "Do not fabricate, guess, or pull from external knowledge.\n\n"
+                "## Getting Started\n\n"
+                "Read [index.md](index.md) first — it lists all concepts "
+                "and subdirectories.\n\n"
+                "## Navigation\n\n"
+                "- Follow markdown links between concepts.\n"
+                "- Each `.md` file has YAML frontmatter with `type`, `title`, "
+                "`description`, and other producer-defined metadata.\n"
+                "- Subdirectories group related concepts by topic.\n"
+                "- Cross-links (e.g. `[Customers](/tables/customers.md)`) "
+                "express relationships.\n",
+                encoding="utf-8",
             )
-        )
 
-    if not dry_run:
-        _generate_indexes(processed, dst)
-
-    # Write AGENTS.md (skipped in strict mode)
-    if not dry_run and not strict:
-        (dst / "AGENTS.md").write_text(
-            f"# Knowledge Base: {dst.name}\n\n"
-            f"You are in an OKF (Open Knowledge Format) knowledge base called "
-            f"**{dst.name}**. OKF is a structured markdown format where each "
-            f"`.md` file is a concept with YAML frontmatter and cross-links "
-            f"between related concepts.\n\n"
-            "## Instructions\n\n"
-            "- **Answer from this knowledge base only.** Use the concepts and "
-            "links here as your source of truth.\n"
-            "- **If the answer is not in the knowledge base, say so directly.** "
-            "Do not fabricate, guess, or pull from external knowledge.\n\n"
-            "## Getting Started\n\n"
-            "Read [index.md](index.md) first — it lists all concepts "
-            "and subdirectories.\n\n"
-            "## Navigation\n\n"
-            "- Follow markdown links between concepts.\n"
-            "- Each `.md` file has YAML frontmatter with `type`, `title`, "
-            "`description`, and other producer-defined metadata.\n"
-            "- Subdirectories group related concepts by topic.\n"
-            "- Cross-links (e.g. `[Customers](/tables/customers.md)`) "
-            "express relationships.\n",
-            encoding="utf-8",
-        )
+        if not dry_run:
+            replaced = _commit_staged_bundle(staging_dir, dst)
+            if replaced:
+                warnings.append(f"Replaced existing '{dst}'")
+    finally:
+        if staging_dir is not None and _path_exists(staging_dir):
+            _remove_path(staging_dir)
 
     return BundleResult(
         files_written=len(processed),

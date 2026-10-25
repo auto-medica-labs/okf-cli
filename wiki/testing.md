@@ -77,6 +77,6 @@ uv run pytest -q
 - `list`/`read` hard failure on non-conformant bundles.
 - `read` path traversal guard.
 - Link checking: `_resolve_md_target` path resolution, `--strict` fatal mode, missing/out-of-bundle targets.
-- `--dry-run`: no files written, warnings still reported, `--force` does not delete existing output.
+- `--dry-run`: no files written, warnings still reported, `--force` does not alter existing output. A failed forced rebuild preserves the existing output.
 
 Primary evidence: `tests/test_api.py`, `tests/test_core.py`, `tests/test_cli.py`.

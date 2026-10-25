@@ -80,7 +80,8 @@ Each file imports from `okf.api` and calls the corresponding function, translati
 `_generate_indexes` returns the count written and skips any index file that
 already exists unless `overwrite=True`. `reindex()` is the only caller that
 opts into overwriting; `bundle()` uses the default. In practice `bundle()`
-either refuses to touch an existing output dir or wipes it under `--force`, so
+either refuses to touch an existing output dir or replaces it after a staged
+build succeeds under `--force`, so
 the skip branch is a safety default in the shared helper rather than reachable
 bundle behavior. The run is idempotent: a second `reindex()` writes the same
 content.

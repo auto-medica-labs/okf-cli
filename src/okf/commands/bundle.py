@@ -19,7 +19,10 @@ def bundle(
         None, help="Type for root-level files (default: input directory name)"
     ),
     force: bool = typer.Option(
-        False, "--force", "-f", help="Overwrite output directory if it exists"
+        False,
+        "--force",
+        "-f",
+        help="Replace existing output after a successful build",
     ),
     strict: bool = typer.Option(
         False,

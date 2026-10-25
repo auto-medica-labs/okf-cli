@@ -212,7 +212,7 @@ class TestBundle:
 
         assert result.files_written == 1
         assert not (dst / "old.txt").exists()
-        assert any("Removed" in w for w in result.warnings)
+        assert any("Replaced existing" in w for w in result.warnings)
 
     def test_no_force_fails(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -362,6 +362,49 @@ class TestBundle:
 
         assert result.files_written == 0
         assert any("strict link check failed" in e.lower() for e in result.errors)
+
+    def test_force_strict_failure_preserves_existing_output(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        dst.mkdir()
+        (dst / "important.txt").write_text("keep this bundle")
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "# Orders\n\n> One row.\n\nSee [C](customers.md)."
+                ),
+            },
+        )
+
+        result = bundle(src, dst, force=True, strict=True)
+
+        assert result.errors
+        assert (dst / "important.txt").read_text() == "keep this bundle"
+        assert not list(tmp_path.glob(".out.staging-*"))
+
+    def test_force_write_failure_preserves_existing_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import okf.api as api
+
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        dst.mkdir()
+        (dst / "important.txt").write_text("keep this bundle")
+        _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+        def fail_write(*args, **kwargs):
+            raise ValueError("simulated write failure")
+
+        monkeypatch.setattr(api, "_write_concept", fail_write)
+        result = bundle(src, dst, force=True)
+
+        assert result.errors == ["tables/a.md: simulated write failure"]
+        assert (dst / "important.txt").read_text() == "keep this bundle"
+        assert not list(tmp_path.glob(".out.staging-*"))
 
     def test_strict_passes(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -517,7 +560,7 @@ class TestBundle:
         result = bundle(src, dst, force=True, dry_run=True)
 
         assert result.files_written == 1
-        assert any("Removed existing" in w for w in result.warnings)
+        assert any("Would replace existing" in w for w in result.warnings)
         assert (dst / "old.txt").exists()
         assert (dst / "old.txt").read_text() == "preserve me"
 
@@ -533,7 +576,7 @@ class TestBundle:
 
         assert result.files_written == 1
         assert result.errors == []
-        assert not any("Removed existing" in w for w in result.warnings)
+        assert not any("Would replace existing" in w for w in result.warnings)
         assert (dst / "old.txt").exists()
 
     def test_dry_run_strict_still_fails(self, tmp_path: Path):
