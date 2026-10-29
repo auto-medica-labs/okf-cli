@@ -7,6 +7,9 @@ license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = ["typer>=0.15", "pyyaml>=6", "rich>=15.0.0"]
 
+[project.optional-dependencies]
+mcp = ["fastmcp>=4.1.4,<5"]
+
 [project.scripts]
 okf = "okf.cli:app"
 
@@ -18,7 +21,7 @@ build-backend = "hatchling.build"
 packages = ["src/okf"]
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.14"]
+dev = ["pytest>=8", "ruff>=0.14", "fastmcp>=4.1.4,<5"]
 
 [tool.ruff]
 line-length = 88

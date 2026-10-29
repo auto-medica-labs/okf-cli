@@ -16,7 +16,8 @@ Key points:
 - CLI script entrypoint: `okf = "okf.cli:app"`
 - Python API: `from okf.api import bundle, convert_file, convert_content, list_concepts, reindex, show_concept, validate`
 - Runtime deps: `typer`, `pyyaml`, `rich`
-- Dev deps include `pytest`, `ruff`
+- Dev deps include `pytest`, `ruff`, and FastMCP for MCP integration tests
+- Optional `mcp` extra installs FastMCP for `okf serve-mcp` (`uv sync --extra mcp`)
 
 ## Day-to-day commands
 

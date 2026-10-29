@@ -22,7 +22,19 @@ uv run okf bundle example --default-type reference --force --strict
 uv run okf bundle example --default-type reference --dry-run
 ```
 
-### Python API
+#### MCP server
+
+Install the optional MCP dependency and serve a conformant bundle over Streamable HTTP:
+
+```bash
+uv sync --extra mcp
+uv run okf serve-mcp out
+# Default endpoint: http://127.0.0.1:8000/mcp
+```
+
+The server exposes read-only `list_concepts` and `read_concept` tools. It binds to localhost by default. Binding to a non-local interface with `--host` exposes the bundle without authentication; use only on a trusted network or behind an authenticated proxy.
+
+## Python API
 
 ```python
 from okf.api import (

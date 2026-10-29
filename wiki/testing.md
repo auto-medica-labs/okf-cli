@@ -18,6 +18,8 @@
   - conformance engine (`check_conformance`)
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
+- MCP integration tests: `tests/test_mcp.py`
+  - in-process MCP tool calls and `serve-mcp` Streamable HTTP launch configuration
   - Typer-specific behavior (argument parsing, `--force`, `--strict`, `--dry-run`)
 
 ## Run tests

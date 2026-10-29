@@ -7,7 +7,7 @@
 - **CLI layer** (`src/okf/cli.py`) — Typer app creation, command registration, `--version` callback.
 - **API layer** (`src/okf/api.py`) — programmatic Python functions, all business logic lives here.
 - **Core layer** (`src/okf/core.py`) — shared parsing, formatting, conformance helpers.
-- **Command wrappers** (`src/okf/commands/`) — thin IO/error bridges from CLI args to API calls.
+- **Command wrappers** (`src/okf/commands/`) — thin IO/error bridges from CLI args to API calls. `serve_mcp.py` is the optional FastMCP adapter for read-only MCP access over Streamable HTTP.
 
 Why this split: the API layer is the canonical home for all logic. Commands handle only Typer argument parsing, error display, and exit codes. `core.py` holds pure parsing / formatting / conformance logic, but also instantiates shared rich `Console` singletons at import for output (used by `cli.py` and `commands/*`).
 

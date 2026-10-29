@@ -123,12 +123,12 @@ Source: `src/okf/api.py` (`_iter_links`, `_resolve_md_target`).
 
 Two entry forms, matched by `_is_ignored`:
 
-| Entry form              | Matches                                                |
-| ----------------------- | ------------------------------------------------------ |
-| `tables/orders.md`      | that exact bundle-relative path only                   |
-| `tables/partitions/`    | every `.md` under that folder, at any depth            |
-| `tables/partitions/*`   | same as above (`/*` normalized away)                   |
-| `tables/partitions/**`  | same as above (`/**` normalized away)                  |
+| Entry form             | Matches                                     |
+| ---------------------- | ------------------------------------------- |
+| `tables/orders.md`     | that exact bundle-relative path only        |
+| `tables/partitions/`   | every `.md` under that folder, at any depth |
+| `tables/partitions/*`  | same as above (`/*` normalized away)        |
+| `tables/partitions/**` | same as above (`/**` normalized away)       |
 
 Why the normalization: `_load_okfignore` rewrites a trailing `/*` or `/**` to
 `/`, so all three folder spellings collapse to one prefix rule. Folder
