@@ -1,5 +1,6 @@
 """Serve a conformant OKF bundle over MCP Streamable HTTP."""
 
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ from okf import api
 from okf.core import err_console
 
 
-def _create_server(bundle_dir: Path) -> Any:
+def _create_server(bundle_dir: Path, token: str | None = None) -> Any:
     """Create an MCP server exposing read-only bundle tools."""
     try:
         from fastmcp import FastMCP
@@ -18,7 +19,23 @@ def _create_server(bundle_dir: Path) -> Any:
             "MCP support is not installed. Install okf-cli with the 'mcp' extra."
         ) from exc
 
-    mcp = FastMCP(f"OKF bundle: {bundle_dir.name}")
+    auth = None
+    if token is not None:
+        from fastmcp.server.auth import AccessToken, TokenVerifier
+
+        class _TokenVerifier(TokenVerifier):
+            async def verify_token(self, provided_token: str) -> AccessToken | None:
+                if not secrets.compare_digest(provided_token, token):
+                    return None
+                return AccessToken(
+                    token=provided_token,
+                    client_id="okf-cli",
+                    scopes=[],
+                )
+
+        auth = _TokenVerifier()
+
+    mcp = FastMCP(f"OKF bundle: {bundle_dir.name}", auth=auth)
 
     @mcp.tool
     def list_concepts() -> list[dict[str, str]]:
@@ -44,8 +61,18 @@ def serve_mcp(
         "127.0.0.1", "--host", help="Interface to bind (default: localhost only)"
     ),
     port: int = typer.Option(8000, "--port", help="HTTP port to bind"),
+    token: str | None = typer.Option(
+        None,
+        "--token",
+        help="Require this bearer token for MCP requests",
+        show_default=False,
+    ),
 ) -> None:
     """Serve an OKF bundle over MCP Streamable HTTP."""
+    if token is not None and not token.strip():
+        err_console.print("Error: --token must not be empty", style="red")
+        raise typer.Exit(code=2)
+
     bundle_dir = directory.resolve()
     try:
         report = api.validate(bundle_dir)
@@ -62,7 +89,7 @@ def serve_mcp(
         raise typer.Exit(code=1)
 
     try:
-        mcp = _create_server(bundle_dir)
+        mcp = _create_server(bundle_dir, token=token)
     except RuntimeError as exc:
         err_console.print(f"Error: {exc}", style="red")
         raise typer.Exit(code=1) from exc

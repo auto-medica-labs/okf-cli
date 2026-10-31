@@ -37,7 +37,31 @@ uv sync --extra mcp
 uv run okf serve-mcp example_knowledge_base
 ```
 
-The server binds to `127.0.0.1:8000` by default and listens at `http://127.0.0.1:8000/mcp`. Use `--host` and `--port` to change the bind address. The server exposes read-only `list_concepts` and `read_concept` tools. Non-local binds have no built-in authentication; use them only on a trusted network or behind an authenticated proxy.
+The server binds to `127.0.0.1:8000` by default and listens at `http://127.0.0.1:8000/mcp`. Use `--host` and `--port` to change the bind address; `--host 0.0.0.0` listens on all IPv4 interfaces. The server exposes read-only `list_concepts` and `read_concept` tools. Add `--token <secret>` to require the matching `Authorization: Bearer <secret>` header on MCP requests; without it, requests are unauthenticated. For example:
+
+```bash
+uv run okf serve-mcp example_knowledge_base --token "$OKF_MCP_TOKEN"
+```
+
+Use HTTPS (typically through a TLS-terminating proxy) when serving beyond localhost. The token is a command-line argument and may be visible in shell history or process listings; use this option only on a trusted network, and do not treat it as a replacement for TLS.
+
+#### HTTPS with Caddy
+
+When Caddy runs on the same machine, leave the MCP server bound to its default `127.0.0.1` address and let Caddy handle public HTTPS:
+
+```caddyfile
+mcp.example.com {
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+Start the MCP server with authentication enabled:
+
+```bash
+uv run okf serve-mcp example_knowledge_base --token "$OKF_MCP_TOKEN"
+```
+
+Clients connect to `https://mcp.example.com/mcp` and send `Authorization: Bearer <token>`. Keep port `8000` private; Caddy should be the public entry point. Caddy can provision HTTPS automatically when the domain points to the server and is reachable on the required ports.
 
 ## Quick example
 

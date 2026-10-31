@@ -32,7 +32,7 @@ uv run okf serve-mcp out
 # Default endpoint: http://127.0.0.1:8000/mcp
 ```
 
-The server exposes read-only `list_concepts` and `read_concept` tools. It binds to localhost by default. Binding to a non-local interface with `--host` exposes the bundle without authentication; use only on a trusted network or behind an authenticated proxy.
+The server exposes read-only `list_concepts` and `read_concept` tools. It binds to localhost by default. Pass `--token <secret>` to require an `Authorization: Bearer <secret>` header on MCP requests; without it requests are unauthenticated. Use HTTPS (for example, through a TLS-terminating proxy) when serving beyond localhost. The token is passed as a command-line argument and may appear in shell history or process listings.
 
 ## Python API
 
