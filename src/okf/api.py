@@ -156,7 +156,7 @@ def _copy_assets(src: Path, dst: Path, ignored: set[str]) -> int:
     """
     copied = 0
     for item in src.rglob("*"):
-        if not item.is_file():
+        if item.is_symlink() or not item.is_file():
             continue
         rel = item.relative_to(src).as_posix()
         if (

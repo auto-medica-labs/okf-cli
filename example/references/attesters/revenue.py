@@ -3,6 +3,9 @@
 Checks that the executed SQL matches the sanctioned computation
 with the supplied parameters bound in.
 
+This is a minimal example, not a production attester: it does not authenticate
+job_id or independently verify result against BigQuery.
+
 Receipt shape: {job_id: str, executed_sql: str, result: list[dict]}
 """
 

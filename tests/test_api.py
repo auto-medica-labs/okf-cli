@@ -88,6 +88,24 @@ class TestBundle:
         assert not (dst / "ignored/private.py").exists()
         assert not (dst / ".okfignore").exists()
 
+    def test_does_not_copy_symlink_assets(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/orders.md": "# Orders\n\n> One row.\n"})
+
+        private_file = tmp_path / "private.txt"
+        private_file.write_text("outside source tree", encoding="utf-8")
+        try:
+            (src / "private.txt").symlink_to(private_file)
+        except OSError as error:
+            pytest.skip(f"cannot create symlink in test environment: {error}")
+
+        result = bundle(src, dst)
+
+        assert result.files_written == 1
+        assert not (dst / "private.txt").exists()
+
     def test_frontmatter_content(self, tmp_path: Path):
         src = tmp_path / "src"
         dst = tmp_path / "out"
