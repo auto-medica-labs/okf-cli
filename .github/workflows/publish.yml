@@ -1,0 +1,39 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v0.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.11"
+      - name: Verify tag matches package version
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if [[ ! "$tag" =~ ^v0\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag $tag must have the form v0.x.x" >&2
+            exit 1
+          fi
+
+          tag_version="${tag#v}"
+          package_version="$(uv version --short)"
+          if [[ "$tag_version" != "$package_version" ]]; then
+            echo "Tag version $tag_version does not match pyproject.toml version $package_version" >&2
+            exit 1
+          fi
+      - name: Build distributions
+        run: uv build
+      - name: Publish distributions to PyPI
+        run: uv publish
