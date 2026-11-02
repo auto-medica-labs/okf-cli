@@ -7,6 +7,7 @@ import typer
 from okf.commands.bundle import bundle
 from okf.commands.list import cmd_list
 from okf.commands.read import cmd_read
+from okf.commands.serve_mcp import serve_mcp
 from okf.commands.validate import validate
 from okf.core import console
 
@@ -40,6 +41,7 @@ app.command()(bundle)
 app.command("list")(cmd_list)
 app.command("read")(cmd_read)
 app.command("validate")(validate)
+app.command("serve-mcp")(serve_mcp)
 
 
 if __name__ == "__main__":

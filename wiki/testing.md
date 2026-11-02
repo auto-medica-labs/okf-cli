@@ -8,6 +8,7 @@
   - `TestListEntries` — listing metadata via `api.list_entries()` (ID, type, title, description)
   - `TestShowConcept` — reading via `api.show_concept()`, path traversal guard
   - `TestValidate` — conformance checks via `api.validate()`, all §11 rule variants
+  - `TestReindex` — index rebuild via `api.reindex()`: stale root/subdir indexes, new subdirs, idempotence, `okf_version` retention, non-conformant rejection
   - `TestWorkflow` — cross-command pipeline (bundle → validate/list/read)
   - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime `generated` block, input frontmatter preservation
   - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no `generated` block, input frontmatter preservation
@@ -17,6 +18,8 @@
   - conformance engine (`check_conformance`)
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
+- MCP integration tests: `tests/test_mcp.py`
+  - in-process MCP tool calls and `serve-mcp` Streamable HTTP launch configuration
   - Typer-specific behavior (argument parsing, `--force`, `--strict`, `--dry-run`)
 
 ## Run tests
@@ -68,6 +71,7 @@ uv run pytest -q
 ## Behaviors with dedicated regression coverage
 
 - `.okfignore` parsing and skip semantics, including non-UTF-8 failure.
+- `reindex` index regeneration: stale indexes refreshed, subdirs added to parent, idempotent re-runs, non-conformant bundles rejected.
 - Lenient parsing fallback when strict markdown format is missing.
 - Input frontmatter merging precedence: `type`/`generated` overwritten, `okf_version` dropped, input `title`/`description` override parsed body, malformed frontmatter fallback (normal) vs fatal (`--strict`).
 - Reserved filename differences between bundling and spec conformance.
@@ -75,6 +79,6 @@ uv run pytest -q
 - `list`/`read` hard failure on non-conformant bundles.
 - `read` path traversal guard.
 - Link checking: `_resolve_md_target` path resolution, `--strict` fatal mode, missing/out-of-bundle targets.
-- `--dry-run`: no files written, warnings still reported, `--force` does not delete existing output.
+- `--dry-run`: no files written, warnings still reported, `--force` does not alter existing output. A failed forced rebuild preserves the existing output.
 
 Primary evidence: `tests/test_api.py`, `tests/test_core.py`, `tests/test_cli.py`.

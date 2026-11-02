@@ -7,7 +7,7 @@
 - **CLI layer** (`src/okf/cli.py`) — Typer app creation, command registration, `--version` callback.
 - **API layer** (`src/okf/api.py`) — programmatic Python functions, all business logic lives here.
 - **Core layer** (`src/okf/core.py`) — shared parsing, formatting, conformance helpers.
-- **Command wrappers** (`src/okf/commands/`) — thin IO/error bridges from CLI args to API calls.
+- **Command wrappers** (`src/okf/commands/`) — thin IO/error bridges from CLI args to API calls. `serve_mcp.py` is the optional FastMCP adapter for read-only MCP access over Streamable HTTP.
 
 Why this split: the API layer is the canonical home for all logic. Commands handle only Typer argument parsing, error display, and exit codes. `core.py` holds pure parsing / formatting / conformance logic, but also instantiates shared rich `Console` singletons at import for output (used by `cli.py` and `commands/*`).
 
@@ -25,9 +25,12 @@ Public functions and return types:
 | `list_concepts(bundle_dir)`                                              | `list[str]`      | Conformance-gated concept ID listing                                                                                           |
 | `list_entries(bundle_dir)`                                               | `list[dict]`     | Conformance-gated concept metadata (id, type, title, description)                                                              |
 | `show_concept(bundle_dir, concept_id)`                                   | `ConceptContent` | Conformance-gated concept read with path traversal guard                                                                       |
+| `reindex(bundle_dir)`                                                    | `BundleResult`   | Rebuild every `index.md` in place from concepts on disk; `files_written` = index files written                                 |
 | `validate(bundle_dir)`                                                   | `ValidateResult` | Conformance check with `.ok` property                                                                                          |
 
-Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_generate_indexes`, `_merge_input_frontmatter`, `_write_concept`.
+`reindex` is API-only: it has no CLI command, unlike the other public functions.
+
+Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_is_ignored`, `_generate_indexes`, `_merge_input_frontmatter`, `_write_concept`.
 
 ### `src/okf/core.py` — shared utilities
 
@@ -68,6 +71,21 @@ Each file imports from `okf.api` and calls the corresponding function, translati
 1. Call `check_conformance` once.
 1. Return `ValidateResult` with file count, errors, and warnings.
 
+### `reindex` (via `api.reindex()`)
+
+1. Call `list_entries()` — which runs the conformance gate and raises `ValueError` on a non-conformant bundle.
+1. Rebuild `(concept_id, metadata)` pairs from the parsed frontmatter.
+1. Call `_generate_indexes(..., overwrite=True)` to rewrite every `index.md` from scratch.
+
+`_generate_indexes` returns the count written and skips any index file that
+already exists unless `overwrite=True`. `reindex()` is the only caller that
+opts into overwriting; `bundle()` uses the default. In practice `bundle()`
+either refuses to touch an existing output dir or replaces it after a staged
+build succeeds under `--force`, so
+the skip branch is a safety default in the shared helper rather than reachable
+bundle behavior. The run is idempotent: a second `reindex()` writes the same
+content.
+
 ### `okf list` and `okf read` (via `api.list_entries()` / `api.show_concept()`)
 
 `okf list` renders the metadata returned by `api.list_entries()` as a Rich table (ID, type, title, description). `okf read` looks up a single concept by ID via `api.show_concept()`.
@@ -81,6 +99,9 @@ Reason: reading APIs should not return misleading data from broken bundles.
 - Reserved name handling differs by phase:
   - Bundling phase skips `index.md`, `log.md`, `README.md` (`RESERVED`).
   - Spec-conformance phase reserves `index.md`, `log.md`, `agents.md` (`SPEC_RESERVED`). `agents.md` is reserved but skipped during conformance checks (not an error).
+- `.okfignore` matching is exact-path or folder-prefix (`_is_ignored`); folder
+  entries may be written as `dir/`, `dir/*`, or `dir/**` and all normalize to
+  `dir/`.
 - Non-UTF-8 markdown is a conformance error.
 - `type` frontmatter is required and must be non-empty for non-reserved concept files.
 - Bundling preserves arbitrary producer-defined frontmatter keys; only `type`,

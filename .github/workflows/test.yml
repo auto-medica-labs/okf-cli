@@ -10,9 +10,10 @@ jobs:
         python-version: ["3.11"]
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v3
       - run: uv sync
       - run: uvx ruff check .
       - run: uvx ruff format --check .

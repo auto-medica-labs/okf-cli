@@ -22,7 +22,19 @@ uv run okf bundle example --default-type reference --force --strict
 uv run okf bundle example --default-type reference --dry-run
 ```
 
-### Python API
+#### MCP server
+
+Install the optional MCP dependency and serve a conformant bundle over Streamable HTTP:
+
+```bash
+uv sync --extra mcp
+uv run okf serve-mcp out
+# Default endpoint: http://127.0.0.1:8000/mcp
+```
+
+The server exposes read-only `list_concepts` and `read_concept` tools. It binds to localhost by default. Pass `--token <secret>` to require an `Authorization: Bearer <secret>` header on MCP requests; without it requests are unauthenticated. Use HTTPS (for example, through a TLS-terminating proxy) when serving beyond localhost. The token is passed as a command-line argument and may appear in shell history or process listings.
+
+## Python API
 
 ```python
 from okf.api import (
@@ -30,6 +42,7 @@ from okf.api import (
     convert_file,
     convert_content,
     list_concepts,
+    reindex,
     show_concept,
     validate,
 )
@@ -48,6 +61,9 @@ print(concept.body)
 
 report = validate("out")
 assert report.ok
+
+# After adding concepts directly, rebuild the index.md files in place.
+reindex("out")  # API-only; no `okf reindex` command
 ```
 
 Why this sequence:
@@ -57,6 +73,7 @@ Why this sequence:
 1. `list`/`show` operate only on conformant bundles.
 1. `--strict` catches broken local `.md` references at bundle time and skips `AGENTS.md` generation.
 1. `--dry-run` validates the source and reports warnings/errors without writing any files.
+1. `reindex` refreshes `index.md` files after concepts were added directly, so the bundle stays navigable.
 
 ## Wiki map
 

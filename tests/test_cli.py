@@ -58,7 +58,7 @@ def test_bundle_empty_dir_shows_error(tmp_path: Path):
     assert "No markdown files" in result.output
 
 
-def test_bundle_force_shows_removed(tmp_path: Path):
+def test_bundle_force_shows_replaced(tmp_path: Path):
     src = tmp_path / "src"
     dst = tmp_path / "out"
     src.mkdir()
@@ -67,7 +67,7 @@ def test_bundle_force_shows_removed(tmp_path: Path):
 
     result = runner.invoke(app, ["bundle", str(src), str(dst), "--force"])
     assert result.exit_code == 0
-    assert "Removed existing" in result.output
+    assert "Replaced existing" in result.output
 
 
 def test_bundle_strict_shows_error(tmp_path: Path):

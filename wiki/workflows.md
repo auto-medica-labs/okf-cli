@@ -47,11 +47,13 @@ Important behavior:
 
 - Root-level markdown uses input directory name as type if `--default-type` not specified.
 - Reserved filenames skipped during bundling (`index.md`, `log.md`, `README.md`).
-- `.okfignore` in input root can skip exact bundle-relative paths.
+- `.okfignore` in input root can skip exact bundle-relative paths or whole
+  folders (`dir/`, `dir/*`, `dir/**` all mean "everything under `dir/`").
 - Pre-existing YAML frontmatter in source files is merged into the output concept:
   `type`, `generated`, and `okf_version` are overwritten/dropped; everything else
   is preserved dynamically.
 - `--strict` enforces strict OKF spec output: fails on broken local `.md` links, malformed input frontmatter, and skips `AGENTS.md` generation.
+- `--force` builds into a temporary sibling directory and only replaces the existing output after the full bundle has been built successfully. Validation/link failures leave the old output untouched.
 - `--dry-run` validates the source and reports warnings/errors without writing files or directories; existing output is left untouched even if `--force` is passed.
 - `AGENTS.md` is generated at output root with navigation guidance (unless `--strict` or `--dry-run` is used).
 
@@ -76,6 +78,28 @@ uv run okf read <output-dir> <concept-id>
 
 `list` prints a table of concepts (ID, type, title, description); `read` prints full concept markdown.
 
+### 5) Rebuild indexes after adding concepts directly
+
+Index files go stale when concepts are added to an existing bundle without a
+full re-bundle — typically via the `convert_content` / `convert_file` API:
+
+```python
+from okf.api import convert_content, reindex
+
+convert_content("# Q1\n\n> First quarter.\n", "out/reports/q1.md", type_="reports")
+result = reindex("out")  # rebuilds every index.md in place
+```
+
+Important behavior:
+
+- `reindex` is **API-only** — there is no `okf reindex` command.
+- It is conformance-gated: a non-conformant bundle raises `ValueError` rather than producing misleading indexes.
+- It overwrites existing `index.md` files; `bundle` never needs to, because it either refuses an existing output dir or replaces it after a successful staged rebuild under `--force`.
+- It is idempotent, preserves bundle-root `okf_version`, and adds newly discovered subdirectories to the parent index.
+- `result.files_written` counts index files written, not concepts.
+
+Source: `src/okf/api.py::reindex`, `tests/test_api.py::TestReindex`.
+
 ## Contributor workflow
 
 ### Change parsing/frontmatter/conformance rules
@@ -99,7 +123,8 @@ Common pitfalls:
 
 - keep root `index.md` generation behavior stable;
 - keep reserved-name semantics (`README.md` reserved only for bundling phase);
-- keep `.okfignore` exact-match behavior (no globs).
+- keep `.okfignore` exact-match behavior for plain paths, and folder-prefix
+  behavior for `/`-terminated (or `/*`, `/**`) entries.
 
 ### Add new API function
 

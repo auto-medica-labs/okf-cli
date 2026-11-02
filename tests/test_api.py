@@ -14,6 +14,7 @@ from okf.api import (
     convert_file,
     list_concepts,
     list_entries,
+    reindex,
     show_concept,
     validate,
 )
@@ -63,6 +64,29 @@ class TestBundle:
         assert (dst / "tables" / "index.md").exists()
         assert (dst / "index.md").exists()
         assert (dst / "AGENTS.md").exists()
+
+    def test_copies_non_markdown_assets_and_respects_okfignore(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": "# Orders\n\n> One row.\n",
+                "computations/revenue.sql": "SELECT 1;\n",
+                "attesters/revenue.py": "print('ok')\n",
+                "ignored/private.py": "secret\n",
+                ".okfignore": "ignored/\n",
+            },
+        )
+
+        result = bundle(src, dst)
+
+        assert result.files_written == 3
+        assert (dst / "computations/revenue.sql").read_text() == "SELECT 1;\n"
+        assert (dst / "attesters/revenue.py").read_text() == "print('ok')\n"
+        assert not (dst / "ignored/private.py").exists()
+        assert not (dst / ".okfignore").exists()
 
     def test_frontmatter_content(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -211,7 +235,7 @@ class TestBundle:
 
         assert result.files_written == 1
         assert not (dst / "old.txt").exists()
-        assert any("Removed" in w for w in result.warnings)
+        assert any("Replaced existing" in w for w in result.warnings)
 
     def test_no_force_fails(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -361,6 +385,49 @@ class TestBundle:
 
         assert result.files_written == 0
         assert any("strict link check failed" in e.lower() for e in result.errors)
+
+    def test_force_strict_failure_preserves_existing_output(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        dst.mkdir()
+        (dst / "important.txt").write_text("keep this bundle")
+        _write(
+            src,
+            {
+                "tables/orders.md": (
+                    "# Orders\n\n> One row.\n\nSee [C](customers.md)."
+                ),
+            },
+        )
+
+        result = bundle(src, dst, force=True, strict=True)
+
+        assert result.errors
+        assert (dst / "important.txt").read_text() == "keep this bundle"
+        assert not list(tmp_path.glob(".out.staging-*"))
+
+    def test_force_write_failure_preserves_existing_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import okf.api as api
+
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        dst.mkdir()
+        (dst / "important.txt").write_text("keep this bundle")
+        _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+
+        def fail_write(*args, **kwargs):
+            raise ValueError("simulated write failure")
+
+        monkeypatch.setattr(api, "_write_concept", fail_write)
+        result = bundle(src, dst, force=True)
+
+        assert result.errors == ["tables/a.md: simulated write failure"]
+        assert (dst / "important.txt").read_text() == "keep this bundle"
+        assert not list(tmp_path.glob(".out.staging-*"))
 
     def test_strict_passes(self, tmp_path: Path):
         src = tmp_path / "src"
@@ -516,7 +583,7 @@ class TestBundle:
         result = bundle(src, dst, force=True, dry_run=True)
 
         assert result.files_written == 1
-        assert any("Removed existing" in w for w in result.warnings)
+        assert any("Would replace existing" in w for w in result.warnings)
         assert (dst / "old.txt").exists()
         assert (dst / "old.txt").read_text() == "preserve me"
 
@@ -532,7 +599,7 @@ class TestBundle:
 
         assert result.files_written == 1
         assert result.errors == []
-        assert not any("Removed existing" in w for w in result.warnings)
+        assert not any("Would replace existing" in w for w in result.warnings)
         assert (dst / "old.txt").exists()
 
     def test_dry_run_strict_still_fails(self, tmp_path: Path):
@@ -1294,6 +1361,136 @@ class TestValidate:
         result = validate(d)
         assert not result.ok
         assert len(result.errors) == 2
+
+
+# ---------------------------------------------------------------------------
+# reindex()
+# ---------------------------------------------------------------------------
+
+
+class TestReindex:
+    def test_updates_stale_root_index(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/orders.md": "# Orders\n\n> One row.\n\nBody."})
+        bundle(src, dst)
+        convert_content(
+            "# Fresh Concept\n\n> New root concept.\n\nBody.",
+            dst / "fresh.md",
+            type_="reference",
+        )
+        assert "Fresh Concept" not in (dst / "index.md").read_text()
+
+        result = reindex(dst)
+
+        assert isinstance(result, BundleResult)
+        assert result.output_dir == dst
+        assert "[Fresh Concept](fresh.md)" in (dst / "index.md").read_text()
+
+    def test_updates_subdir_index(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/orders.md": "# Orders\n\n> One row.\n\nBody."})
+        bundle(src, dst)
+        convert_content(
+            "# Extra\n\n> Extra table.\n\nBody.",
+            dst / "tables" / "extra.md",
+            type_="tables",
+        )
+
+        reindex(dst)
+
+        assert "[Extra](extra.md)" in (dst / "tables" / "index.md").read_text()
+
+    def test_adds_subdir_to_root_index(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/orders.md": "# Orders\n\n> One row.\n\nBody."})
+        bundle(src, dst)
+        convert_content(
+            "# Q1\n\n> First quarter.\n\nBody.",
+            dst / "reports" / "q1.md",
+            type_="reports",
+        )
+
+        reindex(dst)
+
+        assert "[reports](reports/)" in (dst / "index.md").read_text()
+
+    def test_idempotent(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": "# Orders\n\n> One row.\n\nBody.",
+                "root.md": "# Root\n\n> Root concept.\n\nBody.",
+            },
+        )
+        bundle(src, dst)
+
+        first = reindex(dst)
+        root_first = (dst / "index.md").read_text()
+        sub_first = (dst / "tables" / "index.md").read_text()
+
+        second = reindex(dst)
+
+        assert first.files_written == second.files_written
+        assert (dst / "index.md").read_text() == root_first
+        assert (dst / "tables" / "index.md").read_text() == sub_first
+
+    def test_keeps_root_okf_version(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+        bundle(src, dst)
+
+        reindex(dst)
+
+        assert _read_frontmatter(dst / "index.md") == {"okf_version": "0.2"}
+
+    def test_passes_validate(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/orders.md": "# Orders\n\n> One row.\n\nBody."})
+        bundle(src, dst)
+        convert_content(
+            "# Fresh\n\n> New.\n\nBody.", dst / "tables" / "fresh.md", type_="tables"
+        )
+
+        reindex(dst)
+
+        assert validate(dst).ok
+
+    def test_rejects_non_conformant_bundle(self, tmp_path: Path):
+        d = tmp_path / "raw"
+        d.mkdir()
+        _write(d, {"plain.md": "# Title\n\n> Desc.\n\nBody."})
+
+        with pytest.raises(ValueError, match="not an OKF-conformant"):
+            reindex(d)
+
+    def test_files_written_count(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/a.md": "# A\n\n> Desc.\n"})
+        bundle(src, dst)
+
+        result = reindex(dst)
+
+        # Root index plus one subdirectory index.
+        assert result.files_written == 2
+
+    def test_not_a_dir(self, tmp_path: Path):
+        with pytest.raises(NotADirectoryError):
+            reindex(tmp_path / "nope")
 
 
 # ---------------------------------------------------------------------------
