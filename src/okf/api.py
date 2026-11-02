@@ -148,6 +148,31 @@ def _is_ignored(rel_posix: str, ignored: set[str]) -> bool:
     return any(pat.endswith("/") and rel_posix.startswith(pat) for pat in ignored)
 
 
+def _copy_assets(src: Path, dst: Path, ignored: set[str]) -> int:
+    """Copy non-.md assets (e.g. .py, .sql) from src to dst.
+
+    Skips ``.md`` files (already processed as concepts), ``.okfignore``,
+    and any path listed in ``ignored``. Returns count of copied files.
+    """
+    copied = 0
+    for item in src.rglob("*"):
+        if item.is_symlink() or not item.is_file():
+            continue
+        rel = item.relative_to(src).as_posix()
+        if (
+            item.suffix == ".md"
+            or _is_ignored(rel, ignored)
+            or item.name == ".okfignore"
+        ):
+            continue
+        target = dst / item.relative_to(src)
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
+            copied += 1
+    return copied
+
+
 def _path_exists(path: Path) -> bool:
     """Return true for paths including dangling symlinks."""
     return path.exists() or path.is_symlink()
@@ -559,8 +584,11 @@ def bundle(
                 )
             )
 
+        files_written = len(processed)
+
         if not dry_run:
             _generate_indexes(processed, build_dir)
+            files_written += _copy_assets(src, build_dir, ignored)
 
         # Write AGENTS.md (skipped in strict mode)
         if not dry_run and not strict:
@@ -597,7 +625,7 @@ def bundle(
             _remove_path(staging_dir)
 
     return BundleResult(
-        files_written=len(processed),
+        files_written=files_written,
         output_dir=dst,
         warnings=warnings,
         errors=errors,

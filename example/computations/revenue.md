@@ -25,14 +25,6 @@ sources:
     last_modified: "2026-04-02"
 ---
 
-# Computation
-
-```
-SELECT SUM(amount) AS revenue
-FROM finance.recognized_revenue
-WHERE fiscal_year = @year
-```
-
 Recognized revenue per the recognition policy.[^rev-policy]
 
 \[^rev-policy\]: Revenue recognition policy
