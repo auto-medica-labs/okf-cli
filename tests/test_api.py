@@ -65,6 +65,47 @@ class TestBundle:
         assert (dst / "index.md").exists()
         assert (dst / "AGENTS.md").exists()
 
+    def test_copies_non_markdown_assets_and_respects_okfignore(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(
+            src,
+            {
+                "tables/orders.md": "# Orders\n\n> One row.\n",
+                "computations/revenue.sql": "SELECT 1;\n",
+                "attesters/revenue.py": "print('ok')\n",
+                "ignored/private.py": "secret\n",
+                ".okfignore": "ignored/\n",
+            },
+        )
+
+        result = bundle(src, dst)
+
+        assert result.files_written == 3
+        assert (dst / "computations/revenue.sql").read_text() == "SELECT 1;\n"
+        assert (dst / "attesters/revenue.py").read_text() == "print('ok')\n"
+        assert not (dst / "ignored/private.py").exists()
+        assert not (dst / ".okfignore").exists()
+
+    def test_does_not_copy_symlink_assets(self, tmp_path: Path):
+        src = tmp_path / "src"
+        dst = tmp_path / "out"
+        src.mkdir()
+        _write(src, {"tables/orders.md": "# Orders\n\n> One row.\n"})
+
+        private_file = tmp_path / "private.txt"
+        private_file.write_text("outside source tree", encoding="utf-8")
+        try:
+            (src / "private.txt").symlink_to(private_file)
+        except OSError as error:
+            pytest.skip(f"cannot create symlink in test environment: {error}")
+
+        result = bundle(src, dst)
+
+        assert result.files_written == 1
+        assert not (dst / "private.txt").exists()
+
     def test_frontmatter_content(self, tmp_path: Path):
         src = tmp_path / "src"
         dst = tmp_path / "out"

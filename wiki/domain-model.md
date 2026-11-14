@@ -117,18 +117,18 @@ Source: `src/okf/api.py` (`_iter_links`, `_resolve_md_target`).
 ## `.okfignore` model (bundle-only)
 
 - file location: `<input-dir>/.okfignore`
-- syntax: one bundle-relative markdown path or folder per line
+- syntax: one bundle-relative path or folder per line; rules apply to markdown inputs and non-markdown assets
 - ignores blank lines and `#` comments
 - non-UTF-8 `.okfignore` fails bundling
 
 Two entry forms, matched by `_is_ignored`:
 
-| Entry form             | Matches                                     |
-| ---------------------- | ------------------------------------------- |
-| `tables/orders.md`     | that exact bundle-relative path only        |
-| `tables/partitions/`   | every `.md` under that folder, at any depth |
-| `tables/partitions/*`  | same as above (`/*` normalized away)        |
-| `tables/partitions/**` | same as above (`/**` normalized away)       |
+| Entry form             | Matches                                              |
+| ---------------------- | ---------------------------------------------------- |
+| `tables/orders.md`     | that exact bundle-relative path only                |
+| `tables/partitions/`   | every file under that folder, at any depth           |
+| `tables/partitions/*`  | same as above (`/*` normalized away)                 |
+| `tables/partitions/**` | same as above (`/**` normalized away)                |
 
 Why the normalization: `_load_okfignore` rewrites a trailing `/*` or `/**` to
 `/`, so all three folder spellings collapse to one prefix rule. Folder
@@ -147,6 +147,7 @@ Source: `_load_okfignore`, `_is_ignored` in `src/okf/api.py`; example file: `exa
 Each bundle run produces:
 
 - concept `.md` files with YAML frontmatter
+- copied non-Markdown regular files, preserving relative paths (omitted when matched by `.okfignore`; symlinks are skipped)
 - `index.md` per directory listing contents and subdirs
 - `AGENTS.md` at output root: navigation guide for AI agents and humans (references `index.md`, explains frontmatter and cross-links); omitted in `--strict` mode
 
