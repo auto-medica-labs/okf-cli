@@ -8,7 +8,14 @@
   - `TestListEntries` — listing metadata via `api.list_entries()` (ID, type, title, description)
   - `TestShowConcept` — reading via `api.show_concept()`, path traversal guard
   - `TestValidate` — conformance checks via `api.validate()`, all §11 rule variants
-  - `TestReindex` — index rebuild via `api.reindex()`: stale root/subdir indexes, new subdirs, idempotence, `okf_version` retention, non-conformant rejection
+  - `TestReindex` — index rebuild via `api.reindex()`: stale root/subdir indexes emptied and reported, new subdirs, idempotence, `okf_version` retention, non-conformant rejection
+  - `TestBundleOpen` — `Bundle.open`, ordering parity with `list_*`, conformance gating, empty bundles; `refresh()` detects added/changed/removed files, a failed refresh keeps the previous state
+  - `TestSearch` — word matching and ranking, Thai and symbol text, date/number scalar match, `generated`/`verified` excluded, case-insensitive `type_` and `filters`, limit
+  - `TestReadSection` — section extraction (nested headings kept, headings in code fences ignored, missing-section error), link-style IDs, unsafe/reserved IDs
+  - `TestReadLinks` — resolved bundle-local concept links, dedup, `exists`, reserved/outside targets omitted, links scoped to the returned section
+  - `TestListdir` / `TestBrowse` — concepts and subdirectories with full paths, dot-segment normalization, synthesized/preferred existing `index.md`, error cases
+  - `TestValidateConcept` / `TestWriteConcept` — single-concept §11 checks, YAML round-trip validation, atomic write, unsafe/reserved IDs, `Bundle.write` refresh
+  - `TestReindexStaleIndexes` — stale subdir/root indexes emptied and reported via `warnings`, `okf_version` retained
   - `TestWorkflow` — cross-command pipeline (bundle → validate/list/read)
   - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime `generated` block, input frontmatter preservation
   - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no `generated` block, input frontmatter preservation
@@ -19,7 +26,7 @@
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
 - MCP integration tests: `tests/test_mcp.py`
-  - in-process MCP tool calls and `serve-mcp` Streamable HTTP launch configuration
+  - in-process MCP tool calls (`search`, date scalar matching, structured `browse`, `read_concept` with `section`, normalized `id` and resolved `links`, read-only annotations, files written after start), server instructions with/without `AGENTS.md` (and its index.md note), and `serve-mcp` Streamable HTTP launch configuration
   - Typer-specific behavior (argument parsing, `--force`, `--strict`, `--dry-run`)
 
 ## Run tests
@@ -71,7 +78,7 @@ uv run pytest -q
 ## Behaviors with dedicated regression coverage
 
 - `.okfignore` parsing and skip semantics, including non-UTF-8 failure.
-- `reindex` index regeneration: stale indexes refreshed, subdirs added to parent, idempotent re-runs, non-conformant bundles rejected.
+- `reindex` index regeneration: stale indexes emptied (never deleted) and reported in `result.warnings`, subdirs added to parent, idempotent re-runs, non-conformant bundles rejected.
 - Lenient parsing fallback when strict markdown format is missing.
 - Input frontmatter merging precedence: `type`/`generated` overwritten, `okf_version` dropped, input `title`/`description` override parsed body, malformed frontmatter fallback (normal) vs fatal (`--strict`).
 - Reserved filename differences between bundling and spec conformance.

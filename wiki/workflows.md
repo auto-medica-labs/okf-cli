@@ -78,27 +78,60 @@ uv run okf read <output-dir> <concept-id>
 
 `list` prints a table of concepts (ID, type, title, description); `read` prints full concept markdown.
 
-### 5) Rebuild indexes after adding concepts directly
+### 5) Rebuild indexes after adding or removing concepts directly
 
-Index files go stale when concepts are added to an existing bundle without a
-full re-bundle — typically via the `convert_content` / `convert_file` API:
+Index files go stale when concepts are added or removed without a
+full re-bundle — typically via the `write_concept` / `convert_content` /
+`convert_file` API:
 
 ```python
 from okf.api import convert_content, reindex
 
 convert_content("# Q1\n\n> First quarter.\n", "out/reports/q1.md", type_="reports")
-result = reindex("out")  # rebuilds every index.md in place
+result = reindex("out")  # same as `okf reindex out`
 ```
+
+or from the shell: `uv run okf reindex out`.
 
 Important behavior:
 
-- `reindex` is **API-only** — there is no `okf reindex` command.
+- `reindex` rewrites every `index.md` from scratch: indexes whose concepts remain are regenerated, and indexes left behind by removed concepts or directories are **emptied in place** (never deleted) and listed in `result.warnings`.
 - It is conformance-gated: a non-conformant bundle raises `ValueError` rather than producing misleading indexes.
-- It overwrites existing `index.md` files; `bundle` never needs to, because it either refuses an existing output dir or replaces it after a successful staged rebuild under `--force`.
+- Hand-written content in `index.md` files is discarded; `bundle` never needs to rebuild them, because it either refuses an existing output dir or replaces it after a successful staged rebuild under `--force`.
 - It is idempotent, preserves bundle-root `okf_version`, and adds newly discovered subdirectories to the parent index.
-- `result.files_written` counts index files written, not concepts.
+- `result.files_written` counts index files written (including emptied ones), not concepts.
 
-Source: `src/okf/api.py::reindex`, `tests/test_api.py::TestReindex`.
+Source: `src/okf/api.py::reindex`, `src/okf/commands/reindex.py`, `tests/test_api.py::TestReindex`.
+
+### 6) Generate concepts from a program
+
+Generators (scripts, LLM pipelines) write concepts with `write_concept`, which
+keeps every frontmatter key as given — unlike `bundle`/`convert_*`, which set
+`type` from the directory and replace `generated`:
+
+```python
+from okf.api import Bundle, reindex, validate_concept
+
+kb = Bundle.open("kb")  # may start empty
+fm = {
+    "type": "Feature",
+    "title": "Entry",
+    "generated": {"by": "my-gen/1", "at": "2026-11-18T10:00:00Z"},
+}
+report = validate_concept(fm, "# Card\n\n...")
+if report.ok:
+    kb.write(
+        "features/entry", fm, "# Card\n\n..."
+    )  # atomic, then refreshes the index in memory
+kb.read("features/entry", section="Card")  # one section only
+reindex("kb")  # keep index.md files in sync on disk
+```
+
+- Writes go to a temporary file moved into place with `os.replace`, so a running `okf serve-mcp` never serves a half-written concept.
+- `write_concept` raises `ValueError` for an invalid concept, an ID outside the bundle, or a reserved name.
+- `Bundle` keeps frontmatter in memory; call `refresh()` to see changes made by other processes (only changed files are re-read). A failed refresh raises `ValueError` and leaves the previously loaded state untouched.
+
+Source: `src/okf/api.py` (`Bundle`, `write_concept`, `validate_concept`), `tests/test_api.py`.
 
 ## Contributor workflow
 
