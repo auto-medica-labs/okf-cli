@@ -39,8 +39,9 @@ Public functions and return types:
 | `refresh()`                                     | Re-reads only files added/changed/removed since the last load (stamp = mtime, size, inode); returns changed? |
 | `ids()`, `entries()`                            | Same results and order as `list_concepts` / `list_entries`, from memory                                      |
 | `search(query, *, type_, filters, limit)`       | Word-substring match over ID + frontmatter strings (not `generated`/`verified`); ranked by words matched, field weight, exact match |
-| `read(concept_id, *, section)`                  | Reads the file from disk; accepts link-style IDs (`/a/b.md`)                                                  |
+| `read(concept_id, *, section)`                  | Reads the file from disk; accepts link-style IDs (`/a/b.md`); sets normalized `id` and `links` (body links as `{target, id, exists}`) |
 | `browse(directory)`                             | The directory's `index.md`, or the same listing generated from memory when the file is missing               |
+| `listdir(directory)`                            | `{path, concepts, directories}` from memory, with bundle-relative IDs and paths (what MCP `browse` returns)  |
 | `write(concept_id, frontmatter, body)`          | `write_concept` then `refresh()`                                                                             |
 
 `list_concepts`, `list_entries` and `show_concept` are thin wrappers that open a `Bundle` per call.
@@ -114,7 +115,7 @@ Both reading paths open a `Bundle`, which checks conformance first. If directory
 
 ### `okf serve-mcp`
 
-The command opens the `Bundle` once (refusing non-conformant bundles) and hands it to `_create_server`. Every tool (`list_concepts`, `search`, `browse`, `read_concept`) calls `refresh()` first, so files written while the server runs are served on the next call. Server instructions are a fixed tool guide plus the bundle's `AGENTS.md` when present. YAML dates in frontmatter are returned as ISO strings.
+The command opens the `Bundle` once (refusing non-conformant bundles) and hands it to `_create_server`. Every tool (`list_concepts`, `search`, `browse`, `read_concept`) calls `refresh()` first, so files written while the server runs are served on the next call. Tools are annotated `readOnlyHint`. `browse` returns `Bundle.listdir()`; `read_concept` returns the normalized `id` and `links` resolved to concept IDs, so agents never resolve relative paths themselves. Server instructions are a fixed tool guide plus, when present, the bundle's `AGENTS.md` behind a note that maps its "read index.md" advice to `browse`. YAML dates in frontmatter are returned as ISO strings.
 
 Reason: reading APIs should not return misleading data from broken bundles.
 

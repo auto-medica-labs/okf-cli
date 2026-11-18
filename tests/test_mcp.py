@@ -60,6 +60,7 @@ def test_mcp_tools_list_and_read_concepts(tmp_path: Path):
             "description": "Order records.",
         },
         "body": "Details about orders.\n",
+        "links": [],
     }
 
 
@@ -89,12 +90,12 @@ def test_serve_mcp_runs_streamable_http(tmp_path: Path, monkeypatch):
         def run(self, **kwargs):
             run_options.update(kwargs)
 
-    monkeypatch.setattr(
-        "okf.commands.serve_mcp._create_server",
-        lambda _bundle_dir, token=None, loaded=None: (
-            server_options.update(token=token, loaded_ids=loaded.ids()) or FakeServer()
-        ),
-    )
+    def fake_create_server(_bundle_dir, token=None, loaded=None):
+        assert loaded is not None
+        server_options.update(token=token, loaded_ids=loaded.ids())
+        return FakeServer()
+
+    monkeypatch.setattr("okf.commands.serve_mcp._create_server", fake_create_server)
     result = runner.invoke(
         app,
         [
@@ -138,7 +139,8 @@ def _write_kb(bundle_dir: Path) -> None:
     files = {
         "tables/orders.md": "---\ntype: Table\ntitle: Orders\ndescription: "
         "Order records.\ntags: [sales]\nstale_after: 2026-12-31\n---\n\n"
-        "# Schema\n\n| order_id |\n\n# Notes\n\nJoined with customers.\n",
+        "# Schema\n\n| order_id |\n\n# Notes\n\n"
+        "Joined with [customers](customers.md) and [refunds](/tables/refunds.md).\n",
         "tables/customers.md": "---\ntype: Table\ntitle: Customers\n"
         "description: One row per customer.\n---\n\nBody.\n",
     }
@@ -169,8 +171,26 @@ def test_mcp_search_browse_and_read_section(tmp_path: Path):
 
     assert [e["id"] for e in found.structured_content["result"]] == ["tables/orders"]
     assert [e["id"] for e in filtered.structured_content["result"]] == ["tables/orders"]
-    assert "[Customers](customers.md) - One row per customer." in index.data
+    assert index.structured_content == {
+        "path": "tables",
+        "concepts": [
+            {
+                "id": "tables/customers",
+                "type": "Table",
+                "title": "Customers",
+                "description": "One row per customer.",
+            },
+            {
+                "id": "tables/orders",
+                "type": "Table",
+                "title": "Orders",
+                "description": "Order records.",
+            },
+        ],
+        "directories": [],
+    }
     assert section.structured_content["body"] == "# Schema\n\n| order_id |\n"
+    assert section.structured_content["links"] == []
     assert section.structured_content["frontmatter"]["stale_after"] == "2026-12-31"
 
 
@@ -203,3 +223,45 @@ def test_mcp_instructions_include_bundle_agents_md(tmp_path: Path):
     assert "Code wins over the KB." not in plain.instructions
     assert guided.instructions.startswith(plain.instructions)
     assert guided.instructions.endswith("Code wins over the KB.")
+
+
+def test_mcp_read_concept_resolves_links_and_id(tmp_path: Path):
+    bundle_dir = tmp_path / "bundle"
+    _write_kb(bundle_dir)
+    server = _create_server(bundle_dir)
+
+    async def call_tools():
+        async with Client(server) as client:
+            tools = await client.list_tools()
+            concept = await client.call_tool(
+                "read_concept", {"concept_id": "/tables/orders.md"}
+            )
+            root = await client.call_tool("browse", {"path": ""})
+        return tools, concept, root
+
+    tools, concept, root = asyncio.run(call_tools())
+
+    assert all(t.annotations.read_only_hint for t in tools)
+    assert concept.structured_content["id"] == "tables/orders"
+    assert concept.structured_content["links"] == [
+        {"target": "customers.md", "id": "tables/customers", "exists": True},
+        {"target": "/tables/refunds.md", "id": "tables/refunds", "exists": False},
+    ]
+    assert root.structured_content == {
+        "path": "",
+        "concepts": [],
+        "directories": ["tables"],
+    }
+
+
+def test_mcp_instructions_point_agents_md_index_to_browse(tmp_path: Path):
+    bundle_dir = tmp_path / "bundle"
+    _write_kb(bundle_dir)
+    (bundle_dir / "AGENTS.md").write_text("Read index.md first.", encoding="utf-8")
+
+    instructions = _create_server(bundle_dir).instructions
+
+    assert "call `browse` instead" in instructions
+    assert instructions.index("call `browse` instead") < instructions.index(
+        "Read index.md first."
+    )

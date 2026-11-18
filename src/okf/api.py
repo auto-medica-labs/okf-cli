@@ -71,6 +71,8 @@ class ConceptContent:
     frontmatter: dict[str, Any]
     body: str
     raw: str
+    id: str = ""
+    links: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +601,7 @@ def bundle(
                 encoding="utf-8",
             )
 
-        if not dry_run:
+        if staging_dir is not None:
             replaced = _commit_staged_bundle(staging_dir, dst)
             if replaced:
                 warnings.append(f"Replaced existing '{dst}'")
@@ -852,20 +854,21 @@ class Bundle:
             state.fields = _search_fields(state.concept_id, fm)
         return state
 
-    def _concepts(self) -> list[_FileState]:
+    def _concepts(self) -> list[tuple[str, _FileState]]:
+        """``(concept_id, state)`` for every concept, sorted."""
         return [
-            self._files[rel]
+            (state.concept_id, state)
             for rel in sorted(self._files, key=_sort_key)
-            if self._files[rel].concept_id is not None
+            if (state := self._files[rel]).concept_id is not None
         ]
 
     def ids(self) -> list[str]:
         """Sorted concept IDs."""
-        return [c.concept_id for c in self._concepts()]
+        return [cid for cid, _c in self._concepts()]
 
     def entries(self) -> list[dict[str, str]]:
         """Sorted ``{id, type, title, description}`` for every concept."""
-        return [_entry(c.concept_id, c.frontmatter) for c in self._concepts()]
+        return [_entry(cid, c.frontmatter) for cid, c in self._concepts()]
 
     def search(
         self,
@@ -898,7 +901,7 @@ class Bundle:
         terms = query.casefold().split()
         whole = " ".join(terms)
         ranked: list[tuple[int, int, str, dict[str, str]]] = []
-        for c in self._concepts():
+        for cid, c in self._concepts():
             fm = c.frontmatter
             if type_ is not None and fm.get("type") != type_:
                 continue
@@ -916,7 +919,7 @@ class Bundle:
                 continue
             if terms and any(text == whole for _w, text in c.fields):
                 score += _EXACT_BONUS
-            ranked.append((-matched, -score, c.concept_id, _entry(c.concept_id, fm)))
+            ranked.append((-matched, -score, cid, _entry(cid, fm)))
         ranked.sort(key=lambda r: r[:3])
         results = [r[3] for r in ranked]
         return results if limit is None else results[: max(limit, 0)]
@@ -929,6 +932,12 @@ class Bundle:
         level. The heading is matched case-insensitively, without ``#``s.
         ``raw`` is always the whole file.
 
+        ``id`` is the normalized concept ID. ``links`` lists the markdown
+        links in ``body`` that point at concept files inside the bundle, once
+        each, as ``{target, id, exists}``: ``target`` as written, ``id``
+        resolved against this concept's directory, and ``exists`` false when
+        the bundle has no such concept.
+
         Raises:
             ValueError: Unsafe or reserved ID, or the section does not exist.
             FileNotFoundError: The concept does not exist.
@@ -936,6 +945,7 @@ class Bundle:
         path = _concept_path(self.path, concept_id)
         if not path.is_file():
             raise FileNotFoundError(f"Concept '{concept_id}' not found")
+        rel = posixpath.normpath(path.relative_to(self.path).as_posix())
 
         raw = path.read_text(encoding="utf-8")
         fm = parse_frontmatter(raw) or {}
@@ -950,7 +960,75 @@ class Bundle:
                     f"Available: {available}"
                 )
             body = part
-        return ConceptContent(frontmatter=fm, body=body, raw=raw)
+        return ConceptContent(
+            frontmatter=fm,
+            body=body,
+            raw=raw,
+            id=rel[:-3],
+            links=self._links(rel, body),
+        )
+
+    def _links(self, rel: str, body: str) -> list[dict[str, Any]]:
+        """Concept links in ``body`` of the concept file ``rel``."""
+        links: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for target in _iter_links(body):
+            resolved = _resolve_md_target(Path(rel), target)
+            if resolved is None or resolved == ".." or resolved.startswith("../"):
+                continue
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            state = self._files.get(resolved)
+            links.append(
+                {
+                    "target": target,
+                    "id": resolved[:-3],
+                    "exists": state is not None and state.concept_id is not None,
+                }
+            )
+        return links
+
+    def listdir(self, directory: str = "") -> dict[str, Any]:
+        """Concepts and subdirectories directly inside a bundle directory.
+
+        Unlike ``browse``, every path is bundle-relative, so a concept ``id``
+        can be passed straight to ``read`` and a directory back to
+        ``listdir``.
+
+        Returns:
+            ``{"path", "concepts", "directories"}``; concepts are shaped like
+            ``entries()``, directories are sorted bundle-relative paths.
+
+        Raises:
+            ValueError: If the directory is outside the bundle.
+            FileNotFoundError: If the directory holds no concepts.
+        """
+        rel = posixpath.normpath(directory.strip().strip("/") or ".")
+        if rel == ".." or rel.startswith("../"):
+            raise ValueError(f"'{directory}' is outside the bundle directory")
+
+        concepts: list[dict[str, str]] = []
+        subdirs: set[str] = set()
+        prefix = "" if rel == "." else f"{rel}/"
+        for cid, c in self._concepts():
+            if not cid.startswith(prefix):
+                continue
+            head, sep, _rest = cid[len(prefix) :].partition("/")
+            if sep:
+                subdirs.add(prefix + head)
+            else:
+                concepts.append(_entry(cid, c.frontmatter))
+
+        if not concepts and not subdirs:
+            if rel in self.ids():
+                raise FileNotFoundError(f"'{rel}' is a concept, not a directory")
+            raise FileNotFoundError(f"No concepts under '{directory or '/'}'")
+        return {
+            "path": "" if rel == "." else rel,
+            "concepts": concepts,
+            "directories": sorted(subdirs),
+        }
 
     def browse(self, directory: str = "") -> str:
         """Return the ``index.md`` of a bundle directory (``""`` is the root).

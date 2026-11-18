@@ -15,6 +15,8 @@
   - `TestLoadedBundle` — `Bundle.open`, `refresh()` (added/removed files, new conformance errors), same order as `list_*`
   - `TestSearch` — word matching over ID and frontmatter (incl. extension keys, Thai text), `generated`/`verified` excluded, `type_`/`filters`, ranking, `limit`
   - `TestReadSection` — `section` extraction (nested headings kept, headings in code fences ignored, missing section error), link-style IDs
+  - `TestReadLinks` — normalized `id`; `links` resolved relative/absolute, deduplicated, `exists`, external/anchor/outside links skipped, scoped to `section`
+  - `TestListdir` — concepts and subdirectories with full paths, concept-ID/unknown/outside errors
   - `TestBrowse` — existing `index.md`, generated listing when missing, unknown/outside directories
   - `TestValidateConcept` / `TestWriteConcept` — single-concept checks, atomic write keeping `type`/`generated`, unsafe/reserved IDs
 - Core unit tests: `tests/test_core.py`
@@ -24,7 +26,7 @@
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
 - MCP integration tests: `tests/test_mcp.py`
-  - in-process MCP tool calls (`search`, `browse`, `read_concept` with `section`, files written after start), server instructions with/without `AGENTS.md`, and `serve-mcp` Streamable HTTP launch configuration
+  - in-process MCP tool calls (`search`, structured `browse`, `read_concept` with `section`, normalized `id` and resolved `links`, read-only annotations, files written after start), server instructions with/without `AGENTS.md` (and its index.md note), and `serve-mcp` Streamable HTTP launch configuration
   - Typer-specific behavior (argument parsing, `--force`, `--strict`, `--dry-run`)
 
 ## Run tests

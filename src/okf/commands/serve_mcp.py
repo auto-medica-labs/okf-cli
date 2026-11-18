@@ -29,12 +29,14 @@ def _create_server(
     if token is not None:
         from fastmcp.server.auth import AccessToken, TokenVerifier
 
+        expected_token = token
+
         class _TokenVerifier(TokenVerifier):
-            async def verify_token(self, provided_token: str) -> AccessToken | None:
-                if not secrets.compare_digest(provided_token, token):
+            async def verify_token(self, token: str) -> AccessToken | None:
+                if not secrets.compare_digest(token, expected_token):
                     return None
                 return AccessToken(
-                    token=provided_token,
+                    token=token,
                     client_id="okf-cli",
                     scopes=[],
                 )
@@ -51,8 +53,9 @@ def _create_server(
 
     # Every tool refreshes first: files changed on disk since the last call
     # (for example by a generator writing into the bundle) are re-read.
+    read_only = {"readOnlyHint": True}
 
-    @mcp.tool
+    @mcp.tool(annotations=read_only)
     def list_concepts() -> list[dict[str, str]]:
         """List every concept ID with its type, title, and description.
 
@@ -61,7 +64,7 @@ def _create_server(
         loaded.refresh()
         return loaded.entries()
 
-    @mcp.tool
+    @mcp.tool(annotations=read_only)
     def search(
         query: str = "",
         type: str | None = None,
@@ -80,28 +83,33 @@ def _create_server(
         loaded.refresh()
         return loaded.search(query, type_=type, filters=filters, limit=limit)
 
-    @mcp.tool
-    def browse(path: str = "") -> str:
-        """Return the index of a bundle directory ("" for the root).
+    @mcp.tool(annotations=read_only)
+    def browse(path: str = "") -> dict[str, Any]:
+        """List a bundle directory ("" for the root).
 
-        The index lists the directory's concepts with their descriptions and
-        its subdirectories. Pass a subdirectory path, e.g. "tables", to go down.
+        Returns the directory's concepts (id, type, title, description) and
+        its subdirectories. Every concept `id` can be passed to `read_concept`
+        and every directory back to `browse`, e.g. "tables".
         """
         loaded.refresh()
-        return loaded.browse(path)
+        return loaded.listdir(path)
 
-    @mcp.tool
+    @mcp.tool(annotations=read_only)
     def read_concept(concept_id: str, section: str | None = None) -> dict[str, Any]:
         """Read an OKF concept by its bundle-relative ID, e.g. tables/orders.
 
         Set `section` to a heading (e.g. "Schema") to get only that section.
+        `links` lists the concepts the returned body links to: `target` as
+        written in the body, `id` to pass to `read_concept`, and `exists`
+        false when that concept is not in the bundle.
         """
         loaded.refresh()
         concept = loaded.read(concept_id, section=section)
         return {
-            "id": concept_id,
+            "id": concept.id,
             "frontmatter": _jsonable(concept.frontmatter),
             "body": concept.body,
+            "links": concept.links,
         }
 
     return mcp
@@ -113,8 +121,16 @@ _DEFAULT_INSTRUCTIONS = (
     "description, and producer-defined keys), identified by its path without "
     "'.md' (e.g. tables/orders). Use `search` to find concepts by words, IDs, "
     "tags or other frontmatter values; use `browse` to walk directories from "
-    "the root; use `read_concept` to read a concept, or only one section of "
-    "it. Links inside a concept (e.g. /tables/customers.md) are concept IDs."
+    'the root (""); use `read_concept` to read a concept, or only one section '
+    "of it. Links in a concept body are relative markdown paths: follow them "
+    "with the `id` from `read_concept`'s `links`, where `exists` is false for "
+    "a concept missing from the bundle."
+)
+
+_AGENTS_PREAMBLE = (
+    "The bundle's own guide follows. It is written for reading the files "
+    "directly: where it says to read an index.md, call `browse` instead "
+    '(the root index is `browse("")`).'
 )
 
 
@@ -123,7 +139,7 @@ def _instructions(bundle_dir: Path) -> str:
     for entry in bundle_dir.iterdir():
         if entry.name.lower() == "agents.md" and entry.is_file():
             guide = entry.read_text(encoding="utf-8").strip()
-            return f"{_DEFAULT_INSTRUCTIONS}\n\n{guide}"
+            return f"{_DEFAULT_INSTRUCTIONS}\n\n{_AGENTS_PREAMBLE}\n\n{guide}"
     return _DEFAULT_INSTRUCTIONS
 
 

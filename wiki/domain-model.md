@@ -41,7 +41,7 @@ Implementation: `api.list_concepts()`, `api.show_concept()` in `src/okf/api.py`.
 
 - `BundleResult` — `files_written`, `output_dir`, `warnings`, `errors`
 - `ValidateResult` — `total_files`, `errors`, `warnings`, `ok` (property)
-- `ConceptContent` — `frontmatter` (dict), `body`, `raw`
+- `ConceptContent` — `frontmatter` (dict), `body`, `raw`, `id` (normalized), `links` (`{target, id, exists}` per concept link in `body`)
 
 ### Reserved filenames
 

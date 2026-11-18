@@ -1916,6 +1916,66 @@ class TestReadSection:
         assert b.read("/entities/import/im-dec.md").frontmatter["title"] == "ImDec"
 
 
+class TestReadLinks:
+    def test_returns_normalized_id_and_resolved_links(self, tmp_path: Path):
+        d = tmp_path / "kb"
+        _write(
+            d,
+            {
+                "a/x.md": "---\n" + _concept("T", "X") + "---\n\n"
+                "[y](y.md) [y again](./y.md) [z](../b/z.md) [gone](/a/gone.md) "
+                "[web](https://example.com) [anchor](#top) [out](../../o.md)\n\n"
+                "# Part\n\n[z](../b/z.md)\n",
+                "a/y.md": "---\n" + _concept("T", "Y") + "---\n\nBody.\n",
+                "b/z.md": "---\n" + _concept("T", "Z") + "---\n\nBody.\n",
+            },
+        )
+        b = Bundle.open(d)
+
+        content = b.read("/a/./x.md")
+
+        assert content.id == "a/x"
+        assert content.links == [
+            {"target": "y.md", "id": "a/y", "exists": True},
+            {"target": "../b/z.md", "id": "b/z", "exists": True},
+            {"target": "/a/gone.md", "id": "a/gone", "exists": False},
+        ]
+        assert b.read("a/x", section="Part").links == [
+            {"target": "../b/z.md", "id": "b/z", "exists": True}
+        ]
+
+
+class TestListdir:
+    def test_lists_concepts_and_subdirectories_with_full_paths(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert b.listdir("") == {
+            "path": "",
+            "concepts": [],
+            "directories": ["entities", "features"],
+        }
+        assert b.listdir("/features/") == {
+            "path": "features",
+            "concepts": [],
+            "directories": ["features/export", "features/import"],
+        }
+        listing = b.listdir("features/import")
+        assert [c["id"] for c in listing["concepts"]] == [
+            "features/import/declaration-entry"
+        ]
+        assert listing["directories"] == []
+
+    def test_unknown_concept_or_outside_directory(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        with pytest.raises(FileNotFoundError, match="No concepts"):
+            b.listdir("nothing")
+        with pytest.raises(FileNotFoundError, match="is a concept"):
+            b.listdir("entities/import/im-dec")
+        with pytest.raises(ValueError, match="outside"):
+            b.listdir("../..")
+
+
 class TestBrowse:
     def test_reads_existing_index(self, tmp_path: Path):
         d = _kb(tmp_path)
@@ -1961,8 +2021,8 @@ class TestValidateConcept:
         ]
 
     def test_rejects_non_mapping_and_non_string_body(self):
-        assert not validate_concept(["type"], "").ok
-        assert not validate_concept({"type": "X"}, None).ok
+        assert not validate_concept(["type"], "").ok  # ty: ignore[invalid-argument-type]
+        assert not validate_concept({"type": "X"}, None).ok  # ty: ignore[invalid-argument-type]
 
     def test_rejects_unrepresentable_values(self):
         result = validate_concept({"type": "X", "obj": object()}, "")
