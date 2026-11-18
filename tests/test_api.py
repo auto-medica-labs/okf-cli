@@ -1,11 +1,13 @@
 """Tests for the okf Python API."""
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import yaml
 
 from okf.api import (
+    Bundle,
     BundleResult,
     ConceptContent,
     ValidateResult,
@@ -15,8 +17,11 @@ from okf.api import (
     list_concepts,
     list_entries,
     reindex,
+    search,
     show_concept,
     validate,
+    validate_concept,
+    write_concept,
 )
 from okf.core import parse_frontmatter
 
@@ -1725,3 +1730,439 @@ class TestConvertContent:
         fm = _read_frontmatter(dst)
 
         assert "generated" not in fm
+
+
+# ---------------------------------------------------------------------------
+# Loaded bundle, search, sections, links, writing
+# ---------------------------------------------------------------------------
+
+_SAMPLE_FILES = {
+    "entities/import/im-dec.md": (
+        "---\ntype: Entity\ntitle: ImDec\n"
+        "description: Import declaration header.\n"
+        "tags: [import]\nsymbols: [CDS.iXIMPLE.BC.ImDec]\n"
+        "---\n\n# Card\n\nHeader row.\n\n# Schema\n\n| Column |\n"
+    ),
+    "features/import/declaration-entry.md": (
+        "---\ntype: Feature\ntitle: Import declaration entry\n"
+        "description: Create and submit an import declaration.\n"
+        "tags: [import, declaration]\n"
+        "ui_text:\n  - ใบขนสินค้าขาเข้า\n"
+        "generated: {by: kb-gen/model-x, at: '2026-11-18'}\n"
+        "---\n\n# Card\n\nEntry screen to BL.\n\n## Detail\n\nMore.\n\n"
+        "# Rules\n\n```\n# not a heading\n```\n\nR1.\n"
+    ),
+    "features/export/declaration-entry.md": (
+        "---\ntype: Feature\ntitle: Export declaration entry\n"
+        "description: Create an export declaration.\n"
+        "tags: [export, declaration]\nstale_after: 2026-12-31\n"
+        "---\n\nBody.\n"
+    ),
+}
+
+
+def _sample(tmp_path: Path) -> Path:
+    d = tmp_path / "kb"
+    _write(d, _SAMPLE_FILES)
+    return d
+
+
+class TestBundleOpen:
+    def test_ids_and_entries_match_module_functions(self, tmp_path: Path):
+        d = _sample(tmp_path)
+
+        assert Bundle.open(d).ids() == list_concepts(d)
+        assert Bundle.open(d).entries() == list_entries(d)
+        assert Bundle.open(d).ids() == [
+            "entities/import/im-dec",
+            "features/export/declaration-entry",
+            "features/import/declaration-entry",
+        ]
+
+    def test_rejects_nonconformant(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        _write(d, {"broken.md": "no frontmatter\n"})
+
+        with pytest.raises(ValueError, match="not an OKF-conformant bundle"):
+            Bundle.open(d)
+
+    def test_missing_directory(self, tmp_path: Path):
+        with pytest.raises(NotADirectoryError):
+            Bundle.open(tmp_path / "missing")
+
+    def test_empty_directory_is_a_valid_bundle(self, tmp_path: Path):
+        d = tmp_path / "kb"
+        d.mkdir()
+
+        assert Bundle.open(d).ids() == []
+
+    def test_refresh_picks_up_add_and_remove(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        bundle = Bundle.open(d)
+        assert bundle.refresh() is False
+
+        _write(d, {"tables/new.md": "---\ntype: Table\ntitle: New\n---\n\nBody."})
+        (d / "features" / "export" / "declaration-entry.md").unlink()
+
+        assert bundle.refresh() is True
+        assert "tables/new" in bundle.ids()
+        assert "features/export/declaration-entry" not in bundle.ids()
+
+    def test_failed_refresh_keeps_previous_state(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        bundle = Bundle.open(d)
+        before = bundle.ids()
+        _write(d, {"broken.md": "no frontmatter\n"})
+
+        with pytest.raises(ValueError, match="broken.md"):
+            bundle.refresh()
+
+        assert bundle.ids() == before
+        (d / "broken.md").unlink()
+        assert bundle.refresh() is False
+
+    def test_bundle_refresh_picks_up_in_place_edits(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        bundle = Bundle.open(d)
+        target = d / "entities" / "import" / "im-dec.md"
+        target.write_text(
+            target.read_text().replace("ImDec", "ImDecHeader"), encoding="utf-8"
+        )
+
+        assert bundle.refresh() is True
+        assert bundle.entries()[0]["title"] == "ImDecHeader"
+
+
+class TestSearch:
+    def test_ranks_by_matching_words(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        found = bundle.search("import declaration")
+
+        assert found[0]["id"] == "features/import/declaration-entry"
+        assert {entry["id"] for entry in found} == {
+            "features/import/declaration-entry",
+            "features/export/declaration-entry",
+            "entities/import/im-dec",
+        }
+
+    def test_matches_thai_and_symbols(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert [e["id"] for e in bundle.search("ใบขนสินค้า")] == [
+            "features/import/declaration-entry"
+        ]
+        assert [e["id"] for e in bundle.search("cds.iximple.bc.imdec")] == [
+            "entities/import/im-dec"
+        ]
+
+    def test_matches_date_and_number_scalars(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert [e["id"] for e in bundle.search("2026-12-31")] == [
+            "features/export/declaration-entry"
+        ]
+
+    def test_ignores_generated_provenance(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert bundle.search("kb-gen") == []
+
+    def test_type_is_case_insensitive(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert [e["id"] for e in bundle.search(type_="entity")] == [
+            "entities/import/im-dec"
+        ]
+
+    def test_filters_are_case_insensitive(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert [e["id"] for e in bundle.search(filters={"tags": "EXPORT"})] == [
+            "features/export/declaration-entry"
+        ]
+
+    def test_filters_on_list_values(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        found = bundle.search(filters={"ui_text": "ใบขนสินค้าขาเข้า"})
+
+        assert [e["id"] for e in found] == ["features/import/declaration-entry"]
+
+    def test_exact_whole_value_bonus(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert bundle.search("export declaration entry")[0]["title"] == (
+            "Export declaration entry"
+        )
+
+    def test_limit(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert len(bundle.search("declaration", limit=1)) == 1
+        assert len(bundle.search("", limit=None)) == 3
+        assert bundle.search("", limit=0) == []
+
+    def test_module_level_search(self, tmp_path: Path):
+        d = _sample(tmp_path)
+
+        assert search(d, "imdec")[0]["id"] == "entities/import/im-dec"
+
+
+class TestReadSection:
+    def test_section_until_same_level_heading(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        content = show_concept(d, "features/import/declaration-entry", section="Card")
+
+        assert content.body == "# Card\n\nEntry screen to BL.\n\n## Detail\n\nMore.\n"
+
+    def test_section_ignores_headings_in_code_fences(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        content = show_concept(
+            d, "features/import/declaration-entry", section="# Rules"
+        )
+
+        assert "R1." in content.body
+
+    def test_missing_section_lists_available_headings(self, tmp_path: Path):
+        d = _sample(tmp_path)
+
+        with pytest.raises(ValueError, match="Available sections: Card, Detail, Rules"):
+            show_concept(d, "features/import/declaration-entry", section="Nope")
+
+    def test_rejects_unsafe_and_reserved_ids(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        bundle = Bundle.open(d)
+
+        with pytest.raises(ValueError):
+            bundle.read("../escape")
+        with pytest.raises(ValueError):
+            bundle.read("index")
+
+    def test_accepts_link_style_ids(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert bundle.read("/entities/import/im-dec.md").id == "entities/import/im-dec"
+
+    def test_missing_concept(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        with pytest.raises(FileNotFoundError):
+            bundle.read("tables/missing")
+
+
+class TestReadLinks:
+    def test_links_are_resolved_and_deduplicated(self, tmp_path: Path):
+        d = tmp_path / "kb"
+        _write(
+            d,
+            {
+                "a/x.md": "---\ntype: T\ntitle: X\n---\n\n"
+                "[y](y.md) [y again](./y.md) [z](../b/z.md) [gone](/a/gone.md) "
+                "[gone again](gone.md) [web](https://example.com) [anchor](#top)\n",
+                "a/y.md": "---\ntype: T\ntitle: Y\n---\n\nBody.\n",
+                "b/z.md": "---\ntype: T\ntitle: Z\n---\n\nBody.\n",
+            },
+        )
+        bundle = Bundle.open(d)
+
+        # "gone.md" resolves to the same target as "/a/gone.md"; the second
+        # occurrence is dropped.
+        assert bundle.read("a/x").links == [
+            {"target": "y.md", "id": "a/y", "exists": True},
+            {"target": "../b/z.md", "id": "b/z", "exists": True},
+            {"target": "/a/gone.md", "id": "a/gone", "exists": False},
+        ]
+
+    def test_reserved_and_outside_targets_are_omitted(self, tmp_path: Path):
+        d = tmp_path / "kb"
+        _write(
+            d,
+            {
+                "a/x.md": "---\ntype: T\ntitle: X\n---\n\n"
+                "[index](../index.md) [escape](../../outside.md)\n",
+            },
+        )
+        bundle = Bundle.open(d)
+
+        assert bundle.read("a/x").links == []
+
+    def test_links_are_scoped_to_the_returned_section(self, tmp_path: Path):
+        d = tmp_path / "kb"
+        _write(
+            d,
+            {
+                "a/x.md": "---\ntype: T\ntitle: X\n---\n\n"
+                "# Card\n\n[y](y.md)\n\n# Rules\n\n[z](z.md)\n",
+                "a/y.md": "---\ntype: T\ntitle: Y\n---\n\nBody.\n",
+                "a/z.md": "---\ntype: T\ntitle: Z\n---\n\nBody.\n",
+            },
+        )
+        bundle = Bundle.open(d)
+
+        assert bundle.read("a/x", section="Rules").links == [
+            {"target": "z.md", "id": "a/z", "exists": True}
+        ]
+
+
+class TestListdir:
+    def test_lists_concepts_and_subdirectories(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert bundle.listdir("") == {
+            "path": "",
+            "concepts": [],
+            "directories": ["entities", "features"],
+        }
+        listing = bundle.listdir("features/import")
+        assert [c["id"] for c in listing["concepts"]] == [
+            "features/import/declaration-entry"
+        ]
+        assert listing["directories"] == []
+
+    def test_dot_segments_are_normalized(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        assert bundle.listdir("features/../features/import") == bundle.listdir(
+            "features/import"
+        )
+
+    def test_errors(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        with pytest.raises(FileNotFoundError):
+            bundle.listdir("nothing")
+        with pytest.raises(FileNotFoundError, match="is a concept"):
+            bundle.listdir("entities/import/im-dec")
+        with pytest.raises(ValueError, match="outside"):
+            bundle.listdir("../..")
+
+
+class TestBrowse:
+    def test_synthesizes_index_when_missing(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        text = bundle.browse("features/import")
+
+        assert "[Import declaration entry](declaration-entry.md)" in text
+
+    def test_prefers_existing_index(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        reindex(d)
+
+        assert Bundle.open(d).browse("features") == (
+            d / "features" / "index.md"
+        ).read_text(encoding="utf-8")
+
+    def test_errors(self, tmp_path: Path):
+        bundle = Bundle.open(_sample(tmp_path))
+
+        with pytest.raises(FileNotFoundError):
+            bundle.browse("nothing")
+        with pytest.raises(ValueError, match="outside"):
+            bundle.browse("../..")
+
+
+class TestValidateConcept:
+    def test_valid(self):
+        result = validate_concept({"type": "Feature", "title": "X"}, "# Card\n")
+
+        assert result.ok
+        assert result.total_files == 1
+
+    def test_requires_type(self):
+        assert validate_concept({"title": "X"}, "").errors == [
+            "frontmatter missing non-empty 'type' field"
+        ]
+
+    def test_rejects_non_mapping_frontmatter(self):
+        assert not validate_concept(cast(Any, ["type"]), "").ok
+
+    def test_rejects_non_string_body(self):
+        assert not validate_concept({"type": "X"}, cast(Any, None)).ok
+
+    def test_rejects_unrepresentable_values(self):
+        result = validate_concept({"type": "X", "obj": object()}, "")
+
+        assert not result.ok
+        assert "cannot be written as YAML" in result.errors[0]
+
+    def test_rejects_values_that_break_the_block(self):
+        assert not validate_concept({"type": "X", "note": "a\n---\nb"}, "").ok
+
+
+class TestWriteConcept:
+    def test_keeps_every_key(self, tmp_path: Path):
+        fm = {
+            "description": "Short.",
+            "generated": {"by": "kb-gen/model-x", "at": "2026-11-18T10:00:00Z"},
+            "type": "Feature",
+            "symbols": ["A.B"],
+            "title": "Entry (ใบขน)",
+        }
+
+        path = write_concept(tmp_path, "features/import/entry", fm, "# Card\n")
+
+        assert path == tmp_path / "features" / "import" / "entry.md"
+        text = path.read_text(encoding="utf-8")
+        assert text.startswith("---\ntype: Feature\ntitle: Entry (ใบขน)\n")
+        assert _read_frontmatter(path) == fm
+
+    def test_replaces_existing_without_temp_files(self, tmp_path: Path):
+        write_concept(tmp_path, "a", {"type": "X", "title": "One"}, "1")
+        write_concept(tmp_path, "a", {"type": "X", "title": "Two"}, "2")
+
+        assert _read_frontmatter(tmp_path / "a.md")["title"] == "Two"
+        assert [p.name for p in tmp_path.iterdir()] == ["a.md"]
+
+    def test_invalid_concept_writes_nothing(self, tmp_path: Path):
+        with pytest.raises(ValueError, match="invalid concept 'a'"):
+            write_concept(tmp_path, "a", {"title": "No type"}, "")
+
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.parametrize("bad_id", ["", "../escape", "index", "dir/log", "agents"])
+    def test_rejects_unsafe_or_reserved_ids(self, tmp_path: Path, bad_id: str):
+        with pytest.raises(ValueError):
+            write_concept(tmp_path, bad_id, {"type": "X"}, "")
+
+    def test_bundle_write_refreshes(self, tmp_path: Path):
+        bundle = Bundle.open(tmp_path)
+
+        bundle.write("tables/orders", {"type": "Table", "title": "Orders"}, "Body.")
+
+        assert bundle.ids() == ["tables/orders"]
+        assert bundle.search("orders")[0]["title"] == "Orders"
+
+
+class TestReindexStaleIndexes:
+    def test_empties_stale_subdirectory_index(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        reindex(d)
+        (d / "features" / "export" / "declaration-entry.md").unlink()
+
+        result = reindex(d)
+
+        assert "features/export/index.md" in result.warnings[0]
+        assert (d / "features" / "export" / "index.md").read_text() == ""
+
+    def test_empties_stale_root_index_but_keeps_okf_version(self, tmp_path: Path):
+        d = _sample(tmp_path)
+        reindex(d)
+        for f in d.rglob("*.md"):
+            if f.name != "index.md":
+                f.unlink()
+
+        result = reindex(d)
+
+        assert any("index.md" in w for w in result.warnings)
+        assert (d / "index.md").read_text() == '---\nokf_version: "0.2"\n---\n\n'
+
+    def test_clean_reindex_reports_no_emptied_files(self, tmp_path: Path):
+        d = _sample(tmp_path)
+
+        first = reindex(d)
+        second = reindex(d)
+
+        assert first.warnings == []
+        assert second.warnings == []

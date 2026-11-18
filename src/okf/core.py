@@ -208,6 +208,68 @@ def parse_frontmatter(text: str) -> dict[str, Any] | None:
     return None
 
 
+def dump_frontmatter(data: dict[str, Any]) -> str:
+    """Serialize a frontmatter mapping as a ``---`` delimited YAML block.
+
+    ``type``, ``title`` and ``description`` are emitted first, in that order,
+    when present; all remaining keys keep the order of ``data``. Anything
+    ``yaml.safe_dump`` cannot represent raises, which callers may use for
+    validation.
+    """
+    ordered: dict[str, Any] = {}
+    for key in ("type", "title", "description"):
+        if key in data:
+            ordered[key] = data[key]
+    for key, value in data.items():
+        if key not in ordered:
+            ordered[key] = value
+    yaml_text = yaml.safe_dump(
+        ordered,
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+    ).rstrip("\n")
+    return f"---\n{yaml_text}\n---"
+
+
+def check_file(rel: str, text: str) -> tuple[list[str], dict[str, Any] | None]:
+    """Check one bundle file against OKF v0.2 §11.
+
+    ``rel`` is the bundle-relative path with ``/`` separators; the bundle
+    root index is ``index.md``. Returns the problems found (without a path
+    prefix, so the caller can add one) and the parsed frontmatter (``None``
+    when there is no frontmatter or it is unparseable).
+    """
+    name_lower = Path(rel).name.lower()
+    fm = parse_frontmatter(text)
+    problems: list[str] = []
+
+    if name_lower == "agents.md":
+        # Bundle guide; §11 places no rules on it.
+        return problems, fm
+    if name_lower == "index.md":
+        if fm is not None:
+            if rel == "index.md":
+                extra = set(fm) - {"okf_version"}
+                if extra:
+                    problems.append(
+                        "index.md frontmatter may only contain 'okf_version' (§11)"
+                    )
+            else:
+                problems.append("index.md must not contain frontmatter (§6)")
+    elif name_lower == "log.md":
+        if fm is not None:
+            problems.append("log.md must not contain frontmatter (§7)")
+    elif fm is None:
+        problems.append("missing or unparseable YAML frontmatter")
+    else:
+        type_value = fm.get("type")
+        if not isinstance(type_value, str) or not type_value.strip():
+            problems.append("frontmatter missing non-empty 'type' field")
+
+    return problems, fm
+
+
 def check_conformance(dir_path: Path) -> tuple[list[str], list[str]]:
     """Check OKF v0.2 conformance for a directory (§11).
 
@@ -224,39 +286,16 @@ def check_conformance(dir_path: Path) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     for f in sorted(dir_path.rglob("*.md")):
-        rel = str(f.relative_to(dir_path))
-        name_lower = f.name.lower()
+        rel = f.relative_to(dir_path).as_posix()
         try:
             text = f.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             errors.append(f"{rel}: file is not valid UTF-8")
             continue
-
-        if name_lower in SPEC_RESERVED:
-            if name_lower == "agents.md":
-                continue
-
-            fm = parse_frontmatter(text)
-
-            if name_lower == "index.md" and fm is not None:
-                if rel == "index.md":
-                    # Root index.md — only okf_version allowed per §11
-                    extra = set(fm.keys()) - {"okf_version"}
-                    if extra:
-                        errors.append(
-                            f"{rel}: index.md frontmatter may only contain "
-                            f"'okf_version' (§11)"
-                        )
-                else:
-                    errors.append(f"{rel}: index.md must not contain frontmatter (§6)")
-
-            elif name_lower == "log.md" and fm is not None:
-                errors.append(f"{rel}: log.md must not contain frontmatter (§7)")
-        else:
-            fm = parse_frontmatter(text)
-            if fm is None:
-                errors.append(f"{rel}: missing or unparseable YAML frontmatter")
-            elif not isinstance(fm.get("type"), str) or not str(fm["type"]).strip():
-                errors.append(f"{rel}: frontmatter missing non-empty 'type' field")
+        except OSError as exc:
+            errors.append(f"{rel}: unreadable file ({exc.strerror or exc})")
+            continue
+        problems, _fm = check_file(rel, text)
+        errors.extend(f"{rel}: {problem}" for problem in problems)
 
     return errors, warnings

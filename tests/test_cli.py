@@ -304,3 +304,45 @@ def test_read_non_conformant_shows_message(tmp_path: Path):
     result = runner.invoke(app, ["read", str(d), "notes"])
     assert result.exit_code == 1
     assert "not an OKF-conformant bundle" in result.output
+
+
+# ---------------------------------------------------------------------------
+# reindex — exit codes & output
+# ---------------------------------------------------------------------------
+
+
+def test_reindex_writes_indexes(tmp_path: Path):
+    d = tmp_path / "bundle"
+    d.mkdir()
+    _write(d, {"tables/orders.md": "---\ntype: tables\ntitle: Orders\n---\n\nBody."})
+
+    result = runner.invoke(app, ["reindex", str(d)])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote 2 index files" in result.output
+    assert "[Orders](orders.md)" in (d / "tables" / "index.md").read_text()
+
+
+def test_reindex_empties_stale_indexes_and_warns(tmp_path: Path):
+    d = tmp_path / "bundle"
+    d.mkdir()
+    _write(d, {"tables/orders.md": "---\ntype: tables\ntitle: Orders\n---\n\nBody."})
+    assert runner.invoke(app, ["reindex", str(d)]).exit_code == 0
+    (d / "tables" / "orders.md").unlink()
+
+    result = runner.invoke(app, ["reindex", str(d)])
+
+    assert result.exit_code == 0, result.output
+    assert "Emptied stale index" in result.output
+    assert (d / "tables" / "index.md").read_text() == ""
+
+
+def test_reindex_non_conformant_shows_message(tmp_path: Path):
+    d = tmp_path / "raw"
+    d.mkdir()
+    _write(d, {"notes.md": "# Notes\n\nBody."})
+
+    result = runner.invoke(app, ["reindex", str(d)])
+
+    assert result.exit_code == 1
+    assert "not an OKF-conformant bundle" in result.output

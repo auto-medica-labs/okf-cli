@@ -41,7 +41,7 @@ Implementation: `api.list_concepts()`, `api.show_concept()` in `src/okf/api.py`.
 
 - `BundleResult` — `files_written`, `output_dir`, `warnings`, `errors`
 - `ValidateResult` — `total_files`, `errors`, `warnings`, `ok` (property)
-- `ConceptContent` — `frontmatter` (dict), `body`, `raw`
+- `ConceptContent` — `frontmatter` (dict), `body`, `raw`, `id` (normalized), `links` (`{target, id, exists}` per bundle-local concept link in `body`)
 
 ### Reserved filenames
 
@@ -152,9 +152,15 @@ Each bundle run produces:
 
 `index.md` files are derived data — they are regenerated from the concept files
 present on disk, not treated as authored content. `reindex()` rebuilds them in
-place, which is how a bundle stays navigable after concepts are added directly
-(e.g. via `convert_content`) rather than through a full `bundle()` run. The
-bundle-root `index.md` keeps its `okf_version` frontmatter across a reindex.
+place — rewriting indexes whose concepts remain and emptying indexes left
+behind by removed concepts or directories, so a stale index never references a
+deleted concept — which is how a bundle stays navigable after concepts are
+added or removed directly (e.g. via `write_concept` or `convert_content`)
+rather than through a full `bundle()` run. The bundle-root `index.md` keeps
+its `okf_version` frontmatter across a reindex. Emptied files are reported in
+`result.warnings`.
+
+Implementation: `api.Bundle` (shared loader/conformance state), `api.reindex`.
 
 Source: `src/okf/api.py` (`_write_concept`, `_generate_indexes`, `bundle`, `reindex`).
 

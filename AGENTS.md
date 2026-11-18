@@ -21,8 +21,8 @@ Python 3.11+, **uv**, **typer**, **pyyaml**, **rich**, **pytest**, **ruff**, **h
 - `src/okf/cli.py` — Typer entrypoint and command registration
 - `src/okf/api.py` — programmatic API; all business logic lives here
 - `src/okf/core.py` — shared parsing, formatting, and conformance helpers
-- `src/okf/commands/` — thin CLI wrappers (`bundle`, `list`, `read`, `validate`)
-- `tests/` — `test_api.py`, `test_cli.py`, `test_core.py`
+- `src/okf/commands/` — thin CLI wrappers (`bundle`, `list`, `read`, `reindex`, `validate`, `serve_mcp`)
+- `tests/` — `test_api.py`, `test_cli.py`, `test_core.py`, `test_mcp.py`
 - `wiki/` — architecture, workflows, domain model, operations, testing notes
 - `.github/workflows/test.yml` — CI (pytest + ruff on Python 3.11)
 

@@ -14,7 +14,7 @@ Packaging and runtime metadata: `pyproject.toml`.
 Key points:
 
 - CLI script entrypoint: `okf = "okf.cli:app"`
-- Python API: `from okf.api import bundle, convert_file, convert_content, list_concepts, reindex, show_concept, validate`
+- Python API: `from okf.api import Bundle, bundle, convert_file, convert_content, list_concepts, reindex, search, show_concept, validate, validate_concept, write_concept`
 - Runtime deps: `typer`, `pyyaml`, `rich`
 - Dev deps include `pytest`, `ruff`, and FastMCP for MCP integration tests
 - Optional `mcp` extra installs FastMCP for `okf serve-mcp` (`uv sync --extra mcp`)

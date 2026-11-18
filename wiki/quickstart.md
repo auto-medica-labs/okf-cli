@@ -5,7 +5,7 @@
 - CLI entrypoint: `src/okf/cli.py`
 - Programmatic Python API: `src/okf/api.py`
 - Shared parsing/conformance logic: `src/okf/core.py`
-- Commands (thin wrappers): `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/read.py`
+- Commands (thin wrappers): `src/okf/commands/bundle.py`, `src/okf/commands/validate.py`, `src/okf/commands/list.py`, `src/okf/commands/read.py`, `src/okf/commands/reindex.py`, `src/okf/commands/serve_mcp.py`
 
 ## Start in 5 minutes
 
@@ -32,12 +32,13 @@ uv run okf serve-mcp out
 # Default endpoint: http://127.0.0.1:8000/mcp
 ```
 
-The server exposes read-only `list_concepts` and `read_concept` tools. It binds to localhost by default. Pass `--token <secret>` to require an `Authorization: Bearer <secret>` header on MCP requests; without it requests are unauthenticated. Use HTTPS (for example, through a TLS-terminating proxy) when serving beyond localhost. The token is passed as a command-line argument and may appear in shell history or process listings.
+The server exposes read-only `search`, `browse` (concepts and subdirectories with bundle-relative IDs/paths), `read_concept` (whole concept or one `section`, with body links resolved to concept IDs and an `exists` flag) and `list_concepts` tools; every call re-reads files changed on disk since the last call, so a bundle can be regenerated while it is served. It binds to localhost by default. Pass `--token <secret>` to require an `Authorization: Bearer <secret>` header on MCP requests; without it requests are unauthenticated. Use HTTPS (for example, through a TLS-terminating proxy) when serving beyond localhost. The token is passed as a command-line argument and may appear in shell history or process listings.
 
 ## Python API
 
 ```python
 from okf.api import (
+    Bundle,
     bundle,
     convert_file,
     convert_content,
@@ -45,6 +46,7 @@ from okf.api import (
     reindex,
     show_concept,
     validate,
+    write_concept,
 )
 
 # Full directory bundle
@@ -62,8 +64,18 @@ print(concept.body)
 report = validate("out")
 assert report.ok
 
-# After adding concepts directly, rebuild the index.md files in place.
-reindex("out")  # API-only; no `okf reindex` command
+# Programs that write concepts themselves keep every frontmatter key as given.
+write_concept(
+    "out", "tables/invoices", {"type": "tables", "title": "Invoices"}, "Body."
+)
+
+# After adding or removing concepts directly, rebuild the index.md files.
+reindex("out")  # same as `okf reindex out`; stale indexes are emptied, never deleted
+
+# Repeated reads: load once, then search and read from memory.
+kb = Bundle.open("out")
+kb.search("customer", type_="tables")
+kb.read("tables/customers", section="Schema").body
 ```
 
 Why this sequence:
