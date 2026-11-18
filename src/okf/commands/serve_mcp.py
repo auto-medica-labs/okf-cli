@@ -79,9 +79,12 @@ def _create_server(
         matched as their text; `generated` and `verified` are ignored).
         Concepts matching more words rank higher, then by field weight (ID
         and title > tags and description > other keys). `type` keeps only
-        concepts of that type (case-insensitive). `filters` maps frontmatter
-        keys to required values; a list-valued key matches when it contains
-        the value. An empty `query` lists every concept passing the filters.
+        concepts of that type (case-insensitive). `filters` maps top-level
+        frontmatter keys to required values; scalar values compare
+        case-insensitively and all filters are ANDed; a list-valued key
+        matches when it contains the value. Filter values must be strings.
+        An empty `query` lists every concept passing the filters. `limit`
+        caps the number of results (default 20).
         """
         loaded.refresh()
         return loaded.search(query, type_=type, filters=filters, limit=limit)
@@ -102,10 +105,13 @@ def _create_server(
     def read_concept(concept_id: str, section: str | None = None) -> dict[str, Any]:
         """Read an OKF concept by its bundle-relative ID, e.g. tables/orders.
 
-        Set `section` to a heading (e.g. "Schema") to get only that section.
-        `links` lists the concepts the returned body links to: `target` as
-        written in the body, `id` to pass to `read_concept`, and `exists`
-        false when that concept is not in the bundle.
+        Set `section` to a heading (e.g. "Schema") to get only that section;
+        heading matching is case-insensitive. `links` lists the concepts
+        the returned body links to: `target` as written in the body, `id`
+        to pass to `read_concept`, and `exists` false when that concept is
+        not in the bundle. Only bundle-local links are reported; external
+        URLs, anchors and reserved files are omitted. With `section` set,
+        `links` covers only the returned section.
         """
         loaded.refresh()
         concept = loaded.read(concept_id, section=section)
@@ -130,7 +136,9 @@ _TOOL_GUIDE = (
     "relative markdown paths; `read_concept` reports them with the concept "
     "`id` to follow and an `exists` flag (false means the referenced concept "
     "is not in this bundle). `list_concepts` returns the whole listing and "
-    "is best kept for small bundles — prefer `search` or `browse`."
+    "is best kept for small bundles — prefer `search` or `browse`. "
+    "Tools re-read the bundle on every call, so files changed on disk are "
+    "picked up; a bundle can be regenerated while it is served."
 )
 
 _AGENTS_NOTE = (
