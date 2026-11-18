@@ -69,12 +69,12 @@ okf serve-mcp my-bundle
 
 The server binds to `127.0.0.1:8000` by default and listens at `http://127.0.0.1:8000/mcp`. Use `--host` and `--port` to change the bind address; `--host 0.0.0.0` listens on all IPv4 interfaces. The server exposes read-only tools:
 
-| Tool                                | Purpose                                                                                    |
-| ----------------------------------- | ------------------------------------------------------------------------------------------ |
-| `search(query, type, filters, limit)` | Find concepts by words in the ID, title, description, tags or any other frontmatter value |
-| `browse(path)`                      | List a directory's concepts and subdirectories with bundle-relative IDs and paths          |
-| `read_concept(concept_id, section)` | Read a concept, or only one section; `links` resolves body links to concept IDs (`exists`) |
-| `list_concepts()`                   | List every concept (prefer `search`/`browse` for large bundles)                            |
+| Tool                                  | Purpose                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `search(query, type, filters, limit)` | Find concepts by words in the ID, title, description, tags or any other frontmatter value  |
+| `browse(path)`                        | List a directory's concepts and subdirectories with bundle-relative IDs and paths          |
+| `read_concept(concept_id, section)`   | Read a concept, or only one section; `links` resolves body links to concept IDs (`exists`) |
+| `list_concepts()`                     | List every concept (prefer `search`/`browse` for large bundles)                            |
 
 Every call re-reads files changed on disk since the previous call, so a bundle can be regenerated while it is served. The server instructions describe the tools and append the bundle's `AGENTS.md` when present. Add `--token <secret>` to require the matching `Authorization: Bearer <secret>` header on MCP requests; without it, requests are unauthenticated. For example:
 
