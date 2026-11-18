@@ -10,14 +10,18 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version as _package_version
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
+
+import yaml
 
 from okf.core import (
     RESERVED,
     SPEC_RESERVED,
     build_frontmatter,
     check_conformance,
+    check_file,
+    dump_frontmatter,
     parse_frontmatter,
     parse_md_with_frontmatter,
 )
@@ -197,9 +201,22 @@ def _generate_indexes(
     Returns the number of index files written. Existing index files are kept
     unless ``overwrite`` is true.
     """
+    written = 0
+    for dir_path, text in _index_texts(processed).items():
+        index_path = dst / dir_path / "index.md"
+        if index_path.exists() and not overwrite:
+            continue
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        index_path.write_text(text, encoding="utf-8")
+        written += 1
+    return written
+
+
+def _index_texts(processed: list[tuple[Path, dict]]) -> dict[Path, str]:
+    """Render the index.md text of every directory with concepts or subdirs."""
     dir_files: dict[Path, list[dict]] = {}
     dir_subdirs: dict[Path, set[str]] = {}
-    written = 0
+    texts: dict[Path, str] = {}
 
     for rel, meta in processed:
         parent = rel.parent
@@ -216,10 +233,6 @@ def _generate_indexes(
             dir_subdirs.setdefault(grandparent, set()).add(child_dir)
 
     for dir_path in sorted(set(dir_files.keys()) | set(dir_subdirs.keys())):
-        index_path = dst / dir_path / "index.md"
-        if index_path.exists() and not overwrite:
-            continue
-
         lines: list[str] = []
         if dir_path == Path("."):
             lines.append("---")
@@ -247,11 +260,9 @@ def _generate_indexes(
             lines.append("")
 
         if lines:
-            index_path.parent.mkdir(parents=True, exist_ok=True)
-            index_path.write_text("\n".join(lines), encoding="utf-8")
-            written += 1
+            texts[dir_path] = "\n".join(lines)
 
-    return written
+    return texts
 
 
 # ---------------------------------------------------------------------------
@@ -635,25 +646,350 @@ def reindex(bundle_dir: str | Path) -> BundleResult:
     return BundleResult(files_written=count, output_dir=dst)
 
 
-def _iter_concept_files(dir_path: Path):
-    """Yield (concept_id, file_path) for every concept in a bundle.
+# ---------------------------------------------------------------------------
+# Loaded bundle: one conformance pass, then repeated reads and searches
+# ---------------------------------------------------------------------------
 
-    Validates the directory and conformance before iterating. Skips
-    spec-reserved filenames such as ``index.md`` and ``log.md``.
-    """
-    if not dir_path.is_dir():
-        raise NotADirectoryError(f"'{dir_path}' is not a directory")
+# Search relevance per frontmatter key; unlisted keys weigh 1.
+_FIELD_WEIGHTS = {"title": 3, "tags": 2, "description": 2}
+# Provenance metadata, not content: never matched by search.
+_UNSEARCHED_KEYS = frozenset({"generated", "verified"})
+_ID_WEIGHT = 3
+_EXACT_BONUS = 5
+_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
+_FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 
-    errors, _warnings = check_conformance(dir_path)
-    if errors:
-        raise ValueError("not an OKF-conformant bundle:\n" + "\n".join(errors))
 
-    for f in sorted(dir_path.rglob("*.md")):
-        if f.name.lower() in SPEC_RESERVED:
+@dataclass
+class _FileState:
+    stamp: tuple[int, int, int]
+    errors: list[str]
+    concept_id: str | None = None
+    frontmatter: dict[str, Any] = field(default_factory=dict)
+    fields: list[tuple[int, str]] = field(default_factory=list)
+
+
+def _strings(value: Any) -> list[str]:
+    """Every string inside a frontmatter value, including nested lists/maps."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for v in value.values() for s in _strings(v)]
+    if isinstance(value, list | tuple):
+        return [s for v in value for s in _strings(v)]
+    return []
+
+
+def _search_fields(concept_id: str, fm: dict[str, Any]) -> list[tuple[int, str]]:
+    """(weight, casefolded text) pairs that search matches against."""
+    fields = [(_ID_WEIGHT, concept_id.casefold())]
+    for key, value in fm.items():
+        if key in _UNSEARCHED_KEYS:
             continue
-        rel = f.relative_to(dir_path)
-        cid = str(rel.parent / rel.stem) if rel.parent != Path(".") else rel.stem
-        yield cid, f
+        weight = _FIELD_WEIGHTS.get(key, 1)
+        fields.extend((weight, s.casefold()) for s in _strings(value))
+    return fields
+
+
+def _matches_filter(actual: Any, expected: Any) -> bool:
+    """Equality for scalars; membership for list-valued frontmatter keys."""
+    values = actual if isinstance(actual, list) else [actual]
+    return any(v is not None and str(v) == str(expected) for v in values)
+
+
+def _entry(concept_id: str, fm: dict[str, Any]) -> dict[str, str]:
+    return {
+        "id": concept_id,
+        "type": str(fm.get("type", "")),
+        "title": str(fm.get("title", "")),
+        "description": str(fm.get("description", "")),
+    }
+
+
+def _split_body(raw: str) -> str:
+    """Return the markdown after the frontmatter block."""
+    if raw.startswith("---"):
+        lines = raw.split("\n")
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                return "\n".join(lines[i + 1 :]).lstrip("\n")
+    return raw
+
+
+def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
+    """(line index, level, text) of every ATX heading outside fenced code."""
+    found: list[tuple[int, int, str]] = []
+    fence: str | None = None
+    for i, line in enumerate(lines):
+        stripped = line.rstrip("\r\n")
+        fence_match = _FENCE_RE.match(stripped)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if fence is None:
+                fence = marker
+            elif marker == fence:
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        heading = _HEADING_RE.match(stripped)
+        if heading:
+            found.append((i, len(heading.group(1)), heading.group(2).strip()))
+    return found
+
+
+def _extract_section(body: str, section: str) -> str | None:
+    """Return one section (its heading through the next same-or-higher heading)."""
+    lines = body.splitlines(keepends=True)
+    headings = _headings(lines)
+    wanted = section.strip().lstrip("#").strip().casefold()
+    for n, (start, level, text) in enumerate(headings):
+        if text.casefold() == wanted:
+            end = next(
+                (i for i, lvl, _ in headings[n + 1 :] if lvl <= level), len(lines)
+            )
+            return "".join(lines[start:end]).rstrip("\n") + "\n"
+    return None
+
+
+def _concept_path(dir_path: Path, concept_id: str) -> Path:
+    """Resolve a concept ID to its file, rejecting unsafe or reserved IDs.
+
+    A leading ``/`` (link style) and a trailing ``.md`` are accepted.
+    """
+    cid = concept_id.strip().lstrip("/")
+    if cid.lower().endswith(".md"):
+        cid = cid[:-3]
+    if not cid:
+        raise ValueError("concept ID must not be empty")
+
+    path = dir_path / f"{cid}.md"
+    try:
+        path.resolve().relative_to(dir_path.resolve())
+    except ValueError:
+        raise ValueError(f"'{concept_id}' is outside the bundle directory") from None
+    if path.name.lower() in SPEC_RESERVED:
+        raise ValueError(f"'{concept_id}' is a reserved filename, not a concept")
+    return path
+
+
+def _sort_key(rel: str) -> tuple[str, ...]:
+    """Order paths like ``sorted(Path.rglob())`` does (by path components)."""
+    return PurePosixPath(rel).parts
+
+
+class Bundle:
+    """A conformant OKF bundle held in memory for repeated reads and searches.
+
+    ``Bundle.open`` checks conformance once and indexes every concept's
+    frontmatter. Later calls do not rescan the directory; call ``refresh()``
+    to pick up files that another process changed (only changed files are
+    re-read). ``write()`` refreshes by itself.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._files: dict[str, _FileState] = {}
+
+    @classmethod
+    def open(cls, bundle_dir: str | Path) -> Bundle:
+        """Load a bundle.
+
+        Raises:
+            NotADirectoryError: If bundle_dir is not a directory.
+            ValueError: If the bundle is not OKF-conformant.
+        """
+        path = Path(bundle_dir)
+        if not path.is_dir():
+            raise NotADirectoryError(f"'{path}' is not a directory")
+        loaded = cls(path)
+        loaded.refresh()
+        return loaded
+
+    def refresh(self) -> bool:
+        """Re-read files added, changed or removed since the last load.
+
+        Returns whether anything changed.
+
+        Raises:
+            ValueError: If the bundle is no longer OKF-conformant.
+        """
+        current: dict[str, _FileState] = {}
+        changed = False
+        for f in self.path.rglob("*.md"):
+            st = f.stat()
+            stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+            rel = f.relative_to(self.path).as_posix()
+            known = self._files.get(rel)
+            if known is not None and known.stamp == stamp:
+                current[rel] = known
+                continue
+            current[rel] = self._load(f, rel, stamp)
+            changed = True
+
+        changed = changed or current.keys() != self._files.keys()
+        self._files = current
+        errors = [
+            error
+            for rel in sorted(current, key=_sort_key)
+            for error in current[rel].errors
+        ]
+        if errors:
+            raise ValueError("not an OKF-conformant bundle:\n" + "\n".join(errors))
+        return changed
+
+    @staticmethod
+    def _load(f: Path, rel: str, stamp: tuple[int, int, int]) -> _FileState:
+        try:
+            text = f.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return _FileState(stamp, [f"{rel}: file is not valid UTF-8"])
+        problems, fm = check_file(rel, text)
+        state = _FileState(stamp, [f"{rel}: {p}" for p in problems])
+        if f.name.lower() not in SPEC_RESERVED and fm is not None:
+            state.concept_id = rel[:-3]
+            state.frontmatter = fm
+            state.fields = _search_fields(state.concept_id, fm)
+        return state
+
+    def _concepts(self) -> list[_FileState]:
+        return [
+            self._files[rel]
+            for rel in sorted(self._files, key=_sort_key)
+            if self._files[rel].concept_id is not None
+        ]
+
+    def ids(self) -> list[str]:
+        """Sorted concept IDs."""
+        return [c.concept_id for c in self._concepts()]
+
+    def entries(self) -> list[dict[str, str]]:
+        """Sorted ``{id, type, title, description}`` for every concept."""
+        return [_entry(c.concept_id, c.frontmatter) for c in self._concepts()]
+
+    def search(
+        self,
+        query: str = "",
+        *,
+        type_: str | None = None,
+        filters: dict[str, Any] | None = None,
+        limit: int | None = 20,
+    ) -> list[dict[str, str]]:
+        """Find concepts whose frontmatter or ID contains the query words.
+
+        Each word of ``query`` is matched case-insensitively as a substring of
+        the concept ID, title, description, tags and every other frontmatter
+        string (nested values included; ``generated``/``verified`` excluded).
+        Concepts matching more words rank first, then by field weight (ID and
+        title > tags and description > other keys); a field equal to the
+        whole query ranks highest. An empty query returns every concept that
+        passes the filters, sorted by ID.
+
+        Args:
+            query: Space-separated words.
+            type_: Only concepts with this ``type``.
+            filters: Frontmatter key -> required value. A list-valued key
+                matches when it contains the value.
+            limit: Maximum results; ``None`` for all.
+
+        Returns:
+            Entries shaped like ``entries()``, best match first.
+        """
+        terms = query.casefold().split()
+        whole = " ".join(terms)
+        ranked: list[tuple[int, int, str, dict[str, str]]] = []
+        for c in self._concepts():
+            fm = c.frontmatter
+            if type_ is not None and fm.get("type") != type_:
+                continue
+            if filters and not all(
+                _matches_filter(fm.get(k), v) for k, v in filters.items()
+            ):
+                continue
+            matched = score = 0
+            for term in terms:
+                best = max((w for w, text in c.fields if term in text), default=0)
+                if best:
+                    matched += 1
+                    score += best
+            if terms and not matched:
+                continue
+            if terms and any(text == whole for _w, text in c.fields):
+                score += _EXACT_BONUS
+            ranked.append((-matched, -score, c.concept_id, _entry(c.concept_id, fm)))
+        ranked.sort(key=lambda r: r[:3])
+        results = [r[3] for r in ranked]
+        return results if limit is None else results[: max(limit, 0)]
+
+    def read(self, concept_id: str, *, section: str | None = None) -> ConceptContent:
+        """Read one concept, or only one of its sections.
+
+        With ``section``, ``body`` holds that section only: its heading line
+        through the line before the next heading of the same or a higher
+        level. The heading is matched case-insensitively, without ``#``s.
+        ``raw`` is always the whole file.
+
+        Raises:
+            ValueError: Unsafe or reserved ID, or the section does not exist.
+            FileNotFoundError: The concept does not exist.
+        """
+        path = _concept_path(self.path, concept_id)
+        if not path.is_file():
+            raise FileNotFoundError(f"Concept '{concept_id}' not found")
+
+        raw = path.read_text(encoding="utf-8")
+        fm = parse_frontmatter(raw) or {}
+        body = _split_body(raw)
+        if section is not None:
+            part = _extract_section(body, section)
+            if part is None:
+                names = [t for _i, _l, t in _headings(body.splitlines())]
+                available = ", ".join(names) if names else "none"
+                raise ValueError(
+                    f"Section '{section}' not found in '{concept_id}'. "
+                    f"Available: {available}"
+                )
+            body = part
+        return ConceptContent(frontmatter=fm, body=body, raw=raw)
+
+    def browse(self, directory: str = "") -> str:
+        """Return the ``index.md`` of a bundle directory (``""`` is the root).
+
+        When the directory has no ``index.md`` file, the same listing is
+        generated from the loaded concepts.
+
+        Raises:
+            ValueError: If the directory is outside the bundle.
+            FileNotFoundError: If the directory holds no concepts.
+        """
+        rel = directory.strip().strip("/") or "."
+        target = self.path / rel
+        try:
+            target.resolve().relative_to(self.path.resolve())
+        except ValueError:
+            raise ValueError(f"'{directory}' is outside the bundle directory") from None
+
+        index_file = target / "index.md"
+        if index_file.is_file():
+            return index_file.read_text(encoding="utf-8")
+
+        processed = [
+            (
+                Path(e["id"] + ".md"),
+                {"title": e["title"], "description": e["description"]},
+            )
+            for e in self.entries()
+        ]
+        text = _index_texts(processed).get(Path(rel))
+        if text is None:
+            raise FileNotFoundError(f"No concepts under '{directory or '/'}'")
+        return text
+
+    def write(self, concept_id: str, frontmatter: dict[str, Any], body: str) -> Path:
+        """``write_concept`` into this bundle, then ``refresh()``."""
+        path = write_concept(self.path, concept_id, frontmatter, body)
+        self.refresh()
+        return path
 
 
 def list_concepts(bundle_dir: str | Path) -> list[str]:
@@ -668,7 +1004,7 @@ def list_concepts(bundle_dir: str | Path) -> list[str]:
     Raises:
         ValueError: If the directory is not a valid OKF bundle.
     """
-    return [cid for cid, _f in _iter_concept_files(Path(bundle_dir))]
+    return Bundle.open(bundle_dir).ids()
 
 
 def list_entries(bundle_dir: str | Path) -> list[dict[str, str]]:
@@ -685,72 +1021,128 @@ def list_entries(bundle_dir: str | Path) -> list[dict[str, str]]:
     Raises:
         ValueError: If the directory is not a valid OKF bundle.
     """
-    entries: list[dict[str, str]] = []
-    for cid, f in _iter_concept_files(Path(bundle_dir)):
-        fm = parse_frontmatter(f.read_text(encoding="utf-8")) or {}
-        entries.append(
-            {
-                "id": cid,
-                "type": str(fm.get("type", "")),
-                "title": str(fm.get("title", "")),
-                "description": str(fm.get("description", "")),
-            }
-        )
-
-    return entries
+    return Bundle.open(bundle_dir).entries()
 
 
-def show_concept(bundle_dir: str | Path, concept_id: str) -> ConceptContent:
+def search(
+    bundle_dir: str | Path,
+    query: str = "",
+    *,
+    type_: str | None = None,
+    filters: dict[str, Any] | None = None,
+    limit: int | None = 20,
+) -> list[dict[str, str]]:
+    """Search a bundle once. See ``Bundle.search`` for matching and ranking.
+
+    For repeated searches, open a ``Bundle`` and call ``search`` on it.
+    """
+    return Bundle.open(bundle_dir).search(
+        query, type_=type_, filters=filters, limit=limit
+    )
+
+
+def show_concept(
+    bundle_dir: str | Path, concept_id: str, *, section: str | None = None
+) -> ConceptContent:
     """Read a concept by its ID from an OKF bundle.
 
     Args:
         bundle_dir: Path to an OKF bundle directory.
         concept_id: Concept ID (e.g. ``tables/orders``).
+        section: Optional heading; return only that section as ``body``.
 
     Returns:
         ConceptContent with parsed frontmatter, body, and raw text.
 
     Raises:
-        ValueError: If bundle is not conformant or concept not found.
+        ValueError: If bundle is not conformant, the ID is unsafe or
+            reserved, or the section does not exist.
         FileNotFoundError: If concept file does not exist.
     """
-    dir_path = Path(bundle_dir)
+    return Bundle.open(bundle_dir).read(concept_id, section=section)
 
+
+def _render_concept(frontmatter: dict[str, Any], body: str) -> str:
+    return f"{dump_frontmatter(frontmatter)}\n\n{body}"
+
+
+def validate_concept(frontmatter: dict[str, Any], body: str) -> ValidateResult:
+    """Check one concept before it is written (OKF v0.2 §11 rules).
+
+    The frontmatter is rendered to YAML and parsed back, so values that YAML
+    cannot represent, or that break the ``---`` block, are reported too.
+
+    Returns:
+        ValidateResult with ``total_files=1``.
+    """
+    if not isinstance(frontmatter, dict):
+        return ValidateResult(1, ["frontmatter must be a mapping"])
+    if not isinstance(body, str):
+        return ValidateResult(1, ["body must be a string"])
+    try:
+        text = _render_concept(frontmatter, body)
+        text.encode("utf-8")
+    except (yaml.YAMLError, ValueError, TypeError) as e:
+        return ValidateResult(1, [f"frontmatter cannot be written as YAML: {e}"])
+
+    problems, parsed = check_file("concept.md", text)
+    if not problems and parsed != frontmatter:
+        problems.append("frontmatter does not survive a YAML round trip")
+    return ValidateResult(1, problems)
+
+
+def write_concept(
+    bundle_dir: str | Path,
+    concept_id: str,
+    frontmatter: dict[str, Any],
+    body: str,
+) -> Path:
+    """Write one concept file exactly as given, replacing any existing one.
+
+    Unlike ``bundle``/``convert_*``, every frontmatter key is kept as given,
+    including ``type`` and ``generated``. ``type``, ``title`` and
+    ``description`` are written first. The file is written to a temporary
+    file and moved into place, so readers never see a partial concept.
+    ``index.md`` files are not updated; call ``reindex`` when done.
+
+    Args:
+        bundle_dir: Bundle root (must exist; it may be empty).
+        concept_id: Target ID, e.g. ``features/import/declaration-entry``.
+        frontmatter: Must contain a non-empty string ``type``.
+        body: Markdown body.
+
+    Returns:
+        Path of the written file.
+
+    Raises:
+        NotADirectoryError: If bundle_dir is not a directory.
+        ValueError: Unsafe or reserved ID, or the concept is not valid.
+    """
+    dir_path = Path(bundle_dir)
     if not dir_path.is_dir():
         raise NotADirectoryError(f"'{dir_path}' is not a directory")
+    path = _concept_path(dir_path, concept_id)
 
-    errors, _warnings = check_conformance(dir_path)
-    if errors:
-        raise ValueError("not an OKF-conformant bundle:\n" + "\n".join(errors))
+    report = validate_concept(frontmatter, body)
+    if not report.ok:
+        raise ValueError(
+            f"invalid concept '{concept_id}':\n" + "\n".join(report.errors)
+        )
 
-    concept_path = dir_path / f"{concept_id}.md"
-
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
     try:
-        concept_path.resolve().relative_to(dir_path.resolve())
-    except ValueError:
-        raise ValueError(f"'{concept_id}' is outside the bundle directory")
-
-    if concept_path.name.lower() in SPEC_RESERVED:
-        raise ValueError(f"'{concept_id}' is a reserved filename, not a concept")
-
-    if not concept_path.is_file():
-        raise FileNotFoundError(f"Concept '{concept_id}' not found")
-
-    raw = concept_path.read_text(encoding="utf-8")
-    fm = parse_frontmatter(raw)
-    if fm is None:
-        fm = {}
-
-    # Strip frontmatter from body
-    body = raw
-    if raw.startswith("---"):
-        lines = raw.split("\n")
-        for i in range(1, len(lines)):
-            if lines[i].strip() == "---":
-                body = "\n".join(lines[i + 1 :]).lstrip("\n")
-                break
-
-    return ConceptContent(frontmatter=fm, body=body, raw=raw)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(_render_concept(frontmatter, body))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+    return path
 
 
 def validate(bundle_dir: str | Path) -> ValidateResult:

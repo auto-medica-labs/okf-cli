@@ -24,13 +24,28 @@ Public functions and return types:
 | `convert_content(content, output_file, type_)`                           | `BundleResult`   | Convert raw markdown string to OKF concept (no `generated` block)                                                              |
 | `list_concepts(bundle_dir)`                                              | `list[str]`      | Conformance-gated concept ID listing                                                                                           |
 | `list_entries(bundle_dir)`                                               | `list[dict]`     | Conformance-gated concept metadata (id, type, title, description)                                                              |
-| `show_concept(bundle_dir, concept_id)`                                   | `ConceptContent` | Conformance-gated concept read with path traversal guard                                                                       |
+| `show_concept(bundle_dir, concept_id, *, section)`                       | `ConceptContent` | Conformance-gated concept read with path traversal guard; `section` returns one heading's section as `body`                    |
+| `search(bundle_dir, query, *, type_, filters, limit)`                    | `list[dict]`     | One-off `Bundle.search` (entries shaped like `list_entries`, best match first)                                                 |
+| `write_concept(bundle_dir, concept_id, frontmatter, body)`               | `Path`           | Atomic write of one concept exactly as given (keeps `type`/`generated`); validates first; does not touch `index.md`            |
+| `validate_concept(frontmatter, body)`                                    | `ValidateResult` | §11 check of one concept before writing, including a YAML round trip                                                           |
 | `reindex(bundle_dir)`                                                    | `BundleResult`   | Rebuild every `index.md` in place from concepts on disk; `files_written` = index files written                                 |
 | `validate(bundle_dir)`                                                   | `ValidateResult` | Conformance check with `.ok` property                                                                                          |
 
-`reindex` is API-only: it has no CLI command, unlike the other public functions.
+`Bundle` is the loaded form for programs and the MCP server that read a bundle many times:
 
-Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_is_ignored`, `_generate_indexes`, `_merge_input_frontmatter`, `_write_concept`.
+| Member                                          | Behavior                                                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Bundle.open(bundle_dir)`                       | One conformance pass; indexes every concept's frontmatter in memory. Raises `ValueError` if non-conformant.  |
+| `refresh()`                                     | Re-reads only files added/changed/removed since the last load (stamp = mtime, size, inode); returns changed? |
+| `ids()`, `entries()`                            | Same results and order as `list_concepts` / `list_entries`, from memory                                      |
+| `search(query, *, type_, filters, limit)`       | Word-substring match over ID + frontmatter strings (not `generated`/`verified`); ranked by words matched, field weight, exact match |
+| `read(concept_id, *, section)`                  | Reads the file from disk; accepts link-style IDs (`/a/b.md`)                                                  |
+| `browse(directory)`                             | The directory's `index.md`, or the same listing generated from memory when the file is missing               |
+| `write(concept_id, frontmatter, body)`          | `write_concept` then `refresh()`                                                                             |
+
+`list_concepts`, `list_entries` and `show_concept` are thin wrappers that open a `Bundle` per call.
+
+Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_okfignore`, `_is_ignored`, `_generate_indexes`, `_index_texts`, `_merge_input_frontmatter`, `_write_concept`, `_concept_path`, `_extract_section`, `_render_concept`.
 
 ### `src/okf/core.py` — shared utilities
 
@@ -44,6 +59,11 @@ Internal helpers (not public API): `_iter_links`, `_resolve_md_target`, `_load_o
   frontmatter block, then extracts title/description/body from the remaining
   content; malformed frontmatter either falls back (normal) or raises (`strict`).
 - `parse_frontmatter(text)` — parses YAML frontmatter, returns `None` for invalid.
+- `dump_frontmatter(data)` — renders a frontmatter mapping as a `---` block,
+  `type`/`title`/`description` first, other keys in the caller's order.
+- `check_file(rel, text)` — §11 rules for one file; returns problems (no path
+  prefix) and the parsed frontmatter. Shared by `check_conformance`,
+  `Bundle` and `validate_concept`.
 - `check_conformance(directory)` — validates OKF v0.2 §11, returns `(errors, warnings)`.
 
 ### Command wrappers (`src/okf/commands/`)
@@ -71,7 +91,7 @@ Each file imports from `okf.api` and calls the corresponding function, translati
 1. Call `check_conformance` once.
 1. Return `ValidateResult` with file count, errors, and warnings.
 
-### `reindex` (via `api.reindex()`)
+### `okf reindex` (via `api.reindex()`)
 
 1. Call `list_entries()` — which runs the conformance gate and raises `ValueError` on a non-conformant bundle.
 1. Rebuild `(concept_id, metadata)` pairs from the parsed frontmatter.
@@ -90,7 +110,11 @@ content.
 
 `okf list` renders the metadata returned by `api.list_entries()` as a Rich table (ID, type, title, description). `okf read` looks up a single concept by ID via `api.show_concept()`.
 
-Both reading paths first run `check_conformance`. If directory is non-conformant, they raise `ValueError`.
+Both reading paths open a `Bundle`, which checks conformance first. If directory is non-conformant, they raise `ValueError`.
+
+### `okf serve-mcp`
+
+The command opens the `Bundle` once (refusing non-conformant bundles) and hands it to `_create_server`. Every tool (`list_concepts`, `search`, `browse`, `read_concept`) calls `refresh()` first, so files written while the server runs are served on the next call. Server instructions are a fixed tool guide plus the bundle's `AGENTS.md` when present. YAML dates in frontmatter are returned as ISO strings.
 
 Reason: reading APIs should not return misleading data from broken bundles.
 

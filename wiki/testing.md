@@ -12,6 +12,11 @@
   - `TestWorkflow` — cross-command pipeline (bundle → validate/list/read)
   - `TestConvertFile` — single-file conversion via `api.convert_file()`, mtime `generated` block, input frontmatter preservation
   - `TestConvertContent` — raw markdown conversion via `api.convert_content()`, no `generated` block, input frontmatter preservation
+  - `TestLoadedBundle` — `Bundle.open`, `refresh()` (added/removed files, new conformance errors), same order as `list_*`
+  - `TestSearch` — word matching over ID and frontmatter (incl. extension keys, Thai text), `generated`/`verified` excluded, `type_`/`filters`, ranking, `limit`
+  - `TestReadSection` — `section` extraction (nested headings kept, headings in code fences ignored, missing section error), link-style IDs
+  - `TestBrowse` — existing `index.md`, generated listing when missing, unknown/outside directories
+  - `TestValidateConcept` / `TestWriteConcept` — single-concept checks, atomic write keeping `type`/`generated`, unsafe/reserved IDs
 - Core unit tests: `tests/test_core.py`
   - parsing helpers (`parse_md`, `parse_md_with_frontmatter`, `parse_frontmatter`)
   - frontmatter generation (`build_frontmatter`)
@@ -19,7 +24,7 @@
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
 - MCP integration tests: `tests/test_mcp.py`
-  - in-process MCP tool calls and `serve-mcp` Streamable HTTP launch configuration
+  - in-process MCP tool calls (`search`, `browse`, `read_concept` with `section`, files written after start), server instructions with/without `AGENTS.md`, and `serve-mcp` Streamable HTTP launch configuration
   - Typer-specific behavior (argument parsing, `--force`, `--strict`, `--dry-run`)
 
 ## Run tests

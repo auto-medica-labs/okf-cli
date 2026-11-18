@@ -117,6 +117,28 @@ Example:
 okf read my-docs_knowledge_base tables/orders
 ```
 
+### `okf reindex`
+
+Rebuild every `index.md` in a conformant bundle from the concept files on disk.
+Use it after concepts were added, changed or removed directly (by hand or by a
+program using `okf.api.write_concept`) instead of through `okf bundle`.
+
+```bash
+okf reindex <directory>
+```
+
+Existing `index.md` files are overwritten; the bundle-root `okf_version` is kept.
+
+### `okf serve-mcp`
+
+Serve a conformant bundle to MCP clients over Streamable HTTP (needs the `mcp`
+extra). Tools: `search`, `browse`, `read_concept` (optionally one section),
+`list_concepts`. Files changed on disk are picked up on the next call.
+
+```bash
+okf serve-mcp <directory> [--host 127.0.0.1] [--port 8000] [--token <secret>]
+```
+
 ## Plain markdown input format
 
 Best-quality input uses strict shape:

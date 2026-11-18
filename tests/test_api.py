@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from okf.api import (
+    Bundle,
     BundleResult,
     ConceptContent,
     ValidateResult,
@@ -15,8 +16,11 @@ from okf.api import (
     list_concepts,
     list_entries,
     reindex,
+    search,
     show_concept,
     validate,
+    validate_concept,
+    write_concept,
 )
 from okf.core import parse_frontmatter
 
@@ -1725,3 +1729,293 @@ class TestConvertContent:
         fm = _read_frontmatter(dst)
 
         assert "generated" not in fm
+
+
+# ---------------------------------------------------------------------------
+# Loaded bundle, search, sections, browse
+# ---------------------------------------------------------------------------
+
+
+def _concept(type_: str, title: str, description: str = "", **extra) -> str:
+    fm = {"type": type_, "title": title, "description": description, **extra}
+    return yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
+
+
+def _kb(tmp_path: Path) -> Path:
+    d = tmp_path / "kb"
+    _write(
+        d,
+        {
+            "entities/import/im-dec.md": "---\n"
+            + _concept(
+                "Entity",
+                "ImDec",
+                "Import declaration header.",
+                tags=["import"],
+                symbols=["CDS.iXIMPLE.BC.ImDec"],
+            )
+            + "---\n\n# Card\n\nHeader row.\n\n# Schema\n\n| Column |\n",
+            "features/import/declaration-entry.md": "---\n"
+            + _concept(
+                "Feature",
+                "Import declaration entry",
+                "Create and submit an import declaration.",
+                tags=["import", "declaration"],
+                ui_text=["ใบขนสินค้าขาเข้า"],
+                generated={"by": "kb-gen/model-x", "at": "2026-11-18"},
+            )
+            + "---\n\n"
+            "# Card\n\nEntry screen to BL.\n\n## Detail\n\nMore.\n\n"
+            "# Rules\n\n```\n# not a heading\n```\n\nR1.\n",
+            "features/export/declaration-entry.md": "---\n"
+            + _concept(
+                "Feature",
+                "Export declaration entry",
+                "Create an export declaration.",
+                tags=["export", "declaration"],
+            )
+            + "---\n\nBody.\n",
+        },
+    )
+    return d
+
+
+class TestLoadedBundle:
+    def test_open_and_entries(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert b.ids() == [
+            "entities/import/im-dec",
+            "features/export/declaration-entry",
+            "features/import/declaration-entry",
+        ]
+        assert b.entries()[0] == {
+            "id": "entities/import/im-dec",
+            "type": "Entity",
+            "title": "ImDec",
+            "description": "Import declaration header.",
+        }
+
+    def test_open_rejects_nonconformant(self, tmp_path: Path):
+        d = _kb(tmp_path)
+        _write(d, {"bad.md": "No frontmatter."})
+
+        with pytest.raises(ValueError, match="not an OKF-conformant bundle"):
+            Bundle.open(d)
+
+    def test_open_not_a_dir(self, tmp_path: Path):
+        with pytest.raises(NotADirectoryError):
+            Bundle.open(tmp_path / "missing")
+
+    def test_refresh_picks_up_changes(self, tmp_path: Path):
+        d = _kb(tmp_path)
+        b = Bundle.open(d)
+        assert b.refresh() is False
+
+        _write(d, {"tables/new.md": "---\ntype: Table\ntitle: New\n---\n\nBody."})
+        (d / "features" / "export" / "declaration-entry.md").unlink()
+
+        assert b.refresh() is True
+        assert "tables/new" in b.ids()
+        assert "features/export/declaration-entry" not in b.ids()
+
+    def test_refresh_reports_new_conformance_errors(self, tmp_path: Path):
+        d = _kb(tmp_path)
+        b = Bundle.open(d)
+        _write(d, {"broken.md": "---\ntitle: No type\n---\n"})
+
+        with pytest.raises(ValueError, match="broken.md: frontmatter missing"):
+            b.refresh()
+
+    def test_list_functions_use_same_order(self, tmp_path: Path):
+        d = _kb(tmp_path)
+
+        assert list_concepts(d) == Bundle.open(d).ids()
+        assert list_entries(d) == Bundle.open(d).entries()
+
+
+class TestSearch:
+    def test_matches_words_and_ranks_by_coverage(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        ids = [e["id"] for e in b.search("import declaration")]
+
+        assert ids[0] == "features/import/declaration-entry"
+        assert set(ids) == {
+            "features/import/declaration-entry",
+            "features/export/declaration-entry",
+            "entities/import/im-dec",
+        }
+
+    def test_matches_extension_keys_and_thai(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert [e["id"] for e in b.search("cds.ixImple.bc.imdec")] == [
+            "entities/import/im-dec"
+        ]
+        assert [e["id"] for e in b.search("ใบขนสินค้า")] == [
+            "features/import/declaration-entry"
+        ]
+
+    def test_ignores_generated_and_verified(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert b.search("kb-gen") == []
+
+    def test_type_and_filters(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert [e["id"] for e in b.search(type_="Entity")] == ["entities/import/im-dec"]
+        assert [e["id"] for e in b.search(filters={"tags": "export"})] == [
+            "features/export/declaration-entry"
+        ]
+        assert b.search("export", type_="Entity") == []
+
+    def test_exact_match_ranks_first(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert b.search("export declaration entry")[0]["title"] == (
+            "Export declaration entry"
+        )
+
+    def test_limit(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert len(b.search("declaration", limit=1)) == 1
+        assert len(b.search("", limit=None)) == 3
+
+    def test_module_function(self, tmp_path: Path):
+        assert search(_kb(tmp_path), "imdec")[0]["id"] == "entities/import/im-dec"
+
+
+class TestReadSection:
+    def test_section_until_same_level_heading(self, tmp_path: Path):
+        content = show_concept(
+            _kb(tmp_path), "features/import/declaration-entry", section="Card"
+        )
+
+        assert content.body == "# Card\n\nEntry screen to BL.\n\n## Detail\n\nMore.\n"
+        assert content.raw.startswith("---\n")
+
+    def test_section_ignores_headings_in_code(self, tmp_path: Path):
+        content = show_concept(
+            _kb(tmp_path), "features/import/declaration-entry", section="# rules"
+        )
+
+        assert content.body.endswith("```\n\nR1.\n")
+
+    def test_missing_section_lists_available(self, tmp_path: Path):
+        with pytest.raises(ValueError, match="Available: Card, Detail, Rules"):
+            show_concept(
+                _kb(tmp_path), "features/import/declaration-entry", section="Nope"
+            )
+
+    def test_accepts_link_style_id(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        assert b.read("/entities/import/im-dec.md").frontmatter["title"] == "ImDec"
+
+
+class TestBrowse:
+    def test_reads_existing_index(self, tmp_path: Path):
+        d = _kb(tmp_path)
+        reindex(d)
+
+        assert Bundle.open(d).browse("features") == (
+            d / "features" / "index.md"
+        ).read_text(encoding="utf-8")
+
+    def test_synthesizes_missing_index(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        text = b.browse("features/import/")
+
+        assert "[Import declaration entry](declaration-entry.md)" in text
+        assert "* [features](features/)" in b.browse("")
+
+    def test_unknown_or_outside_directory(self, tmp_path: Path):
+        b = Bundle.open(_kb(tmp_path))
+
+        with pytest.raises(FileNotFoundError):
+            b.browse("nothing")
+        with pytest.raises(ValueError, match="outside"):
+            b.browse("../..")
+
+
+# ---------------------------------------------------------------------------
+# write_concept / validate_concept
+# ---------------------------------------------------------------------------
+
+
+class TestValidateConcept:
+    def test_valid(self):
+        result = validate_concept({"type": "Feature", "title": "X"}, "# Card\n")
+
+        assert isinstance(result, ValidateResult)
+        assert result.ok
+        assert result.total_files == 1
+
+    def test_requires_type(self):
+        assert validate_concept({"title": "X"}, "").errors == [
+            "frontmatter missing non-empty 'type' field"
+        ]
+
+    def test_rejects_non_mapping_and_non_string_body(self):
+        assert not validate_concept(["type"], "").ok
+        assert not validate_concept({"type": "X"}, None).ok
+
+    def test_rejects_unrepresentable_values(self):
+        result = validate_concept({"type": "X", "obj": object()}, "")
+
+        assert not result.ok
+        assert "cannot be written as YAML" in result.errors[0]
+
+    def test_rejects_values_that_break_the_block(self):
+        result = validate_concept({"type": "X", "note": "a\n---\nb"}, "")
+
+        assert not result.ok
+
+
+class TestWriteConcept:
+    def test_keeps_every_key_including_type_and_generated(self, tmp_path: Path):
+        fm = {
+            "description": "Short.",
+            "generated": {"by": "kb-gen/model-x", "at": "2026-11-18T10:00:00Z"},
+            "type": "Feature",
+            "symbols": ["A.B"],
+            "title": "Entry (ใบขน)",
+        }
+
+        path = write_concept(tmp_path, "features/import/entry", fm, "# Card\n")
+
+        assert path == tmp_path / "features" / "import" / "entry.md"
+        text = path.read_text(encoding="utf-8")
+        assert text.startswith("---\ntype: Feature\ntitle: Entry (ใบขน)\n")
+        assert _read_frontmatter(path) == fm
+        assert show_concept(tmp_path, "features/import/entry").body == "# Card\n"
+
+    def test_replaces_existing_without_temp_files(self, tmp_path: Path):
+        write_concept(tmp_path, "a", {"type": "X", "title": "One"}, "1")
+        write_concept(tmp_path, "a", {"type": "X", "title": "Two"}, "2")
+
+        assert _read_frontmatter(tmp_path / "a.md")["title"] == "Two"
+        assert [p.name for p in tmp_path.iterdir()] == ["a.md"]
+
+    def test_invalid_concept_writes_nothing(self, tmp_path: Path):
+        with pytest.raises(ValueError, match="invalid concept 'a'"):
+            write_concept(tmp_path, "a", {"title": "No type"}, "")
+
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.parametrize("bad_id", ["", "../escape", "index", "dir/log"])
+    def test_rejects_unsafe_or_reserved_ids(self, tmp_path: Path, bad_id: str):
+        with pytest.raises(ValueError):
+            write_concept(tmp_path, bad_id, {"type": "X"}, "")
+
+    def test_bundle_write_refreshes_index(self, tmp_path: Path):
+        b = Bundle.open(tmp_path)
+
+        b.write("tables/orders", {"type": "Table", "title": "Orders"}, "Body.")
+
+        assert b.ids() == ["tables/orders"]
+        assert b.search("orders")[0]["title"] == "Orders"
