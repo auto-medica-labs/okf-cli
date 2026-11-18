@@ -634,7 +634,7 @@ def bundle(
                 encoding="utf-8",
             )
 
-        if not dry_run:
+        if staging_dir is not None:
             replaced = _commit_staged_bundle(staging_dir, dst)
             if replaced:
                 warnings.append(f"Replaced existing '{dst}'")

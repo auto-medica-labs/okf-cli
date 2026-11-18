@@ -33,11 +33,11 @@ def _create_server(
         expected_token = token
 
         class _TokenVerifier(TokenVerifier):
-            async def verify_token(self, provided: str) -> AccessToken | None:
-                if not secrets.compare_digest(provided, expected_token):
+            async def verify_token(self, token: str) -> AccessToken | None:
+                if not secrets.compare_digest(token, expected_token):
                     return None
                 return AccessToken(
-                    token=provided,
+                    token=token,
                     client_id="okf-cli",
                     scopes=[],
                 )

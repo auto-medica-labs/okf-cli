@@ -1,6 +1,7 @@
 """Tests for the okf Python API."""
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -2075,10 +2076,10 @@ class TestValidateConcept:
         ]
 
     def test_rejects_non_mapping_frontmatter(self):
-        assert not validate_concept(["type"], "").ok  # type: ignore[arg-type]
+        assert not validate_concept(cast(Any, ["type"]), "").ok
 
     def test_rejects_non_string_body(self):
-        assert not validate_concept({"type": "X"}, None).ok  # type: ignore[arg-type]
+        assert not validate_concept({"type": "X"}, cast(Any, None)).ok
 
     def test_rejects_unrepresentable_values(self):
         result = validate_concept({"type": "X", "obj": object()}, "")
