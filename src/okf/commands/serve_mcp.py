@@ -1,7 +1,6 @@
 """Serve a conformant OKF bundle over MCP Streamable HTTP."""
 
 import secrets
-from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -106,7 +105,8 @@ def _create_server(
         """Read an OKF concept by its bundle-relative ID, e.g. tables/orders.
 
         Set `section` to a heading (e.g. "Schema") to get only that section;
-        heading matching is case-insensitive. `links` lists the concepts
+        heading matching is case-insensitive. Frontmatter is not returned;
+        `body` holds the concept content. `links` lists the concepts
         the returned body links to: `target` as written in the body, `id`
         to pass to `read_concept`, and `exists` false when that concept is
         not in the bundle. Only bundle-local links are reported; external
@@ -117,7 +117,6 @@ def _create_server(
         concept = loaded.read(concept_id, section=section)
         return {
             "id": concept.id,
-            "frontmatter": _jsonable(concept.frontmatter),
             "body": concept.body,
             "links": concept.links,
         }
@@ -159,17 +158,6 @@ def _instructions(bundle_dir: Path) -> str:
     except OSError:
         pass
     return _TOOL_GUIDE
-
-
-def _jsonable(value: Any) -> Any:
-    """Turn dates and timestamps into ISO strings for JSON transport."""
-    if isinstance(value, dict):
-        return {key: _jsonable(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_jsonable(item) for item in value]
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    return value
 
 
 def serve_mcp(

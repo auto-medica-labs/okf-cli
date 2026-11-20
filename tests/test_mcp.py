@@ -56,11 +56,6 @@ def test_mcp_tools_list_and_read_concepts(tmp_path: Path):
     assert concept.is_error is False
     assert concept.structured_content == {
         "id": "tables/orders",
-        "frontmatter": {
-            "type": "tables",
-            "title": "Orders",
-            "description": "Order records.",
-        },
         "body": "Details about orders.\n",
         "links": [],
     }
@@ -194,7 +189,7 @@ def test_mcp_search_browse_and_read_section(tmp_path: Path):
     }
     assert section.structured_content["body"] == "# Schema\n\n| order_id |\n"
     assert section.structured_content["links"] == []
-    assert section.structured_content["frontmatter"]["stale_after"] == "2026-12-31"
+    assert "frontmatter" not in section.structured_content
 
 
 def test_mcp_search_matches_dates(tmp_path: Path):
