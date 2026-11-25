@@ -162,9 +162,19 @@ def test_mcp_search_browse_and_read_section(tmp_path: Path):
             section = await client.call_tool(
                 "read_concept", {"concept_id": "tables/orders", "section": "Schema"}
             )
-        return found, filtered, index, section
+            section_with_frontmatter = await client.call_tool(
+                "read_concept",
+                {
+                    "concept_id": "tables/orders",
+                    "section": "Schema",
+                    "include_frontmatter": True,
+                },
+            )
+        return found, filtered, index, section, section_with_frontmatter
 
-    found, filtered, index, section = asyncio.run(call_tools())
+    found, filtered, index, section, section_with_frontmatter = asyncio.run(
+        call_tools()
+    )
 
     assert [e["id"] for e in found.structured_content["result"]] == ["tables/orders"]
     # Only orders carries the "sales" tag in the fixture.
@@ -190,6 +200,13 @@ def test_mcp_search_browse_and_read_section(tmp_path: Path):
     assert section.structured_content["body"] == "# Schema\n\n| order_id |\n"
     assert section.structured_content["links"] == []
     assert "frontmatter" not in section.structured_content
+    assert section_with_frontmatter.structured_content["frontmatter"] == {
+        "type": "Table",
+        "title": "Orders",
+        "description": "Order records.",
+        "tags": ["sales"],
+        "stale_after": "2026-12-31",
+    }
 
 
 def test_mcp_search_matches_dates(tmp_path: Path):

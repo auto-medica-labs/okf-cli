@@ -1,6 +1,7 @@
 """Serve a conformant OKF bundle over MCP Streamable HTTP."""
 
 import secrets
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -101,12 +102,17 @@ def _create_server(
         return loaded.listdir(path)
 
     @mcp.tool(annotations=read_only)
-    def read_concept(concept_id: str, section: str | None = None) -> dict[str, Any]:
+    def read_concept(
+        concept_id: str,
+        section: str | None = None,
+        include_frontmatter: bool = False,
+    ) -> dict[str, Any]:
         """Read an OKF concept by its bundle-relative ID, e.g. tables/orders.
 
         Set `section` to a heading (e.g. "Schema") to get only that section;
-        heading matching is case-insensitive. Frontmatter is not returned;
-        `body` holds the concept content. `links` lists the concepts
+        heading matching is case-insensitive. Set `include_frontmatter` to true
+        to include the concept's YAML frontmatter (false by default). `body`
+        holds the concept content. `links` lists the concepts
         the returned body links to: `target` as written in the body, `id`
         to pass to `read_concept`, and `exists` false when that concept is
         not in the bundle. Only bundle-local links are reported; external
@@ -115,11 +121,14 @@ def _create_server(
         """
         loaded.refresh()
         concept = loaded.read(concept_id, section=section)
-        return {
+        result = {
             "id": concept.id,
             "body": concept.body,
             "links": concept.links,
         }
+        if include_frontmatter:
+            result["frontmatter"] = _jsonable(concept.frontmatter)
+        return result
 
     return mcp
 
@@ -131,7 +140,8 @@ _TOOL_GUIDE = (
     "suffix, e.g. tables/orders. To answer from the bundle: use `search` to "
     "find concepts by words, IDs, tags or other frontmatter values; `browse` "
     'to walk the directory tree from the root (""); `read_concept` to read '
-    "one concept, optionally only the section you need. Body links are "
+    "one concept, optionally only the section you need or its frontmatter "
+    "with `include_frontmatter=true` (false by default). Body links are "
     "relative markdown paths; `read_concept` reports them with the concept "
     "`id` to follow and an `exists` flag (false means the referenced concept "
     "is not in this bundle). `list_concepts` returns the whole listing and "
@@ -145,6 +155,17 @@ _AGENTS_NOTE = (
     "the files directly; where it says to read an index.md, call `browse` "
     'instead (the root index is `browse("")`).'
 )
+
+
+def _jsonable(value: Any) -> Any:
+    """Turn dates and timestamps into ISO strings for JSON transport."""
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return value
 
 
 def _instructions(bundle_dir: Path) -> str:

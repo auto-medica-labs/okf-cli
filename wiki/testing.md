@@ -26,7 +26,7 @@
 - CLI integration tests: `tests/test_cli.py`
   - exit codes and error message formatting for all commands
 - MCP integration tests: `tests/test_mcp.py`
-  - in-process MCP tool calls (`search`, date scalar matching, structured `browse`, `read_concept` with `section`, normalized `id` and resolved `links`, read-only annotations, files written after start), server instructions with/without `AGENTS.md` (and its index.md note), and `serve-mcp` Streamable HTTP launch configuration
+  - in-process MCP tool calls (`search`, date scalar matching, structured `browse`, `read_concept` with `section` and optional `include_frontmatter`, normalized `id` and resolved `links`, read-only annotations, files written after start), server instructions with/without `AGENTS.md` (and its index.md note), and `serve-mcp` Streamable HTTP launch configuration
   - Typer-specific behavior (argument parsing, `--force`, `--strict`, `--dry-run`)
 
 ## Run tests
